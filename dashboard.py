@@ -17,6 +17,19 @@ st.markdown("---")
 st.write("### 📁 Upload Daily Report Files")
 uploaded_files = st.file_uploader("Upload Excel files for daily reports", type=["xls", "xlsx"], accept_multiple_files=True, key="daily_reports")
 
+# Initialize session state for generate report button
+if 'generate_report' not in st.session_state:
+    st.session_state.generate_report = False
+
+# Show "Give Report" button only if files are uploaded
+if uploaded_files:
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("📊 Give Report", use_container_width=True, key="give_report_btn"):
+            st.session_state.generate_report = True
+    with col2:
+        st.info(f"✅ {len(uploaded_files)} file(s) ready to report")
+
 # Load data
 @st.cache_data
 def load_data(file_path=None):
@@ -81,11 +94,14 @@ def load_uploaded_files(uploaded_files_list):
     return None
 
 # Load data source
-if uploaded_files:
+if uploaded_files and st.session_state.generate_report:
     df = load_uploaded_files(uploaded_files)
-    st.success(f"✅ Loaded {len(uploaded_files)} file(s)")
-else:
+    st.success(f"✅ Loaded {len(uploaded_files)} file(s) - Report Generated!")
+elif not uploaded_files:
     df = load_data()
+else:
+    st.info("👆 Click 'Give Report' button to generate reports from uploaded files")
+    st.stop()
 
 if df is None or len(df) == 0:
     st.error("No data loaded. Please upload Excel files or ensure Analytics.xls exists.")
