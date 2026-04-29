@@ -616,6 +616,28 @@ with tab5:
                             title="Campaign Impressions by Publisher", barmode='stack')
             st.plotly_chart(fig_pub, use_container_width=True)
             
+            st.markdown("---")
+            st.write("### 📋 Publisher Share % by Campaign (Column Format)")
+            
+            # Create pivot table with Publisher Share % (Campaigns in rows, Publishers in columns)
+            share_pivot_data = campaign_publisher_pct[['Campaigns', 'Publisher', 'Share %']].copy()
+            share_pivot = share_pivot_data.pivot(index='Campaigns', columns='Publisher', values='Share %').fillna(0)
+            
+            # Format as percentages
+            share_pivot_display = share_pivot.map(lambda x: f"{x:.2f}%")
+            st.dataframe(share_pivot_display, use_container_width=True)
+            
+            # Download publisher share pivot
+            csv = share_pivot.reset_index().to_csv(index=False)
+            st.download_button(
+                label="📥 Download Publisher Share % Pivot",
+                data=csv,
+                file_name="publisher_share_pivot.csv",
+                mime="text/csv"
+            )
+            
+            st.markdown("---")
+            
             # Pie charts for each campaign's publisher distribution
             st.write("### Publisher Distribution per Campaign")
             unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
