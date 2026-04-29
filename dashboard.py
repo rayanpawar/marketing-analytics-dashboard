@@ -445,7 +445,7 @@ with tab5:
             revenue_pivot_table = revenue_pivot.pivot(index='Campaigns', columns='Date', values='Revenue (INR)').fillna(0)
             
             # Format as currency
-            revenue_pivot_display = revenue_pivot_table.applymap(lambda x: f"₹{x:,.0f}")
+            revenue_pivot_display = revenue_pivot_table.map(lambda x: f"₹{x:,.0f}")
             st.dataframe(revenue_pivot_display, use_container_width=True)
             
             # Download revenue pivot
