@@ -417,52 +417,71 @@ with tab5:
             
             st.markdown("---")
             
-            # Day-wise breakdown by campaign - VERTICAL FORMAT
-            st.write("### Day-wise Revenue & Impressions by Campaign (Vertical Format)")
+            # Day-wise breakdown by campaign - PIVOT FORMAT (Campaigns in rows, Dates in columns)
+            st.write("### Day-wise Impressions by Campaign")
             
-            # Create vertical display
-            daily_campaign_summary = daily_campaign_data.groupby(['Date', 'Campaigns']).agg({
-                'Impressions': 'sum',
-                'Revenue (INR)': 'sum',
-                'Requests': 'sum',
-                'CTR%': 'mean'
-            }).reset_index().sort_values(['Date', 'Campaigns'])
+            # Create pivot for impressions
+            impressions_pivot = daily_campaign_data.groupby(['Campaigns', 'Date'])['Impressions'].sum().reset_index()
+            impressions_pivot['Date'] = impressions_pivot['Date'].dt.strftime("%d-%b-%Y")
+            impressions_pivot = impressions_pivot.pivot(index='Campaigns', columns='Date', values='Impressions').fillna(0).astype(int)
             
-            daily_campaign_summary['Revenue (₹)'] = daily_campaign_summary['Revenue (INR)'].apply(lambda x: f"₹{x:,.0f}")
-            daily_campaign_summary['Avg CTR%'] = daily_campaign_summary['CTR%'].apply(lambda x: f"{x:.2f}%")
+            st.dataframe(impressions_pivot, use_container_width=True)
             
-            display_vertical = daily_campaign_summary[['Date', 'Campaigns', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']].copy()
-            display_vertical.columns = ['Date', 'Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']
-            
-            st.dataframe(display_vertical, use_container_width=True)
-            
-            # Download vertical format report
-            csv = display_vertical.to_csv(index=False)
+            # Download impressions pivot
+            csv = impressions_pivot.reset_index().to_csv(index=False)
             st.download_button(
-                label="📥 Download Day-wise Campaign Breakdown (Vertical)",
+                label="📥 Download Impressions Pivot",
                 data=csv,
-                file_name="daywise_campaign_vertical.csv",
+                file_name="impressions_pivot.csv",
+                mime="text/csv"
+            )
+            
+            st.markdown("---")
+            st.write("### Day-wise Revenue by Campaign")
+            
+            # Create pivot for revenue
+            revenue_pivot = daily_campaign_data.groupby(['Campaigns', 'Date'])['Revenue (INR)'].sum().reset_index()
+            revenue_pivot['Date'] = revenue_pivot['Date'].dt.strftime("%d-%b-%Y")
+            revenue_pivot_table = revenue_pivot.pivot(index='Campaigns', columns='Date', values='Revenue (INR)').fillna(0)
+            
+            # Format as currency
+            revenue_pivot_display = revenue_pivot_table.applymap(lambda x: f"₹{x:,.0f}")
+            st.dataframe(revenue_pivot_display, use_container_width=True)
+            
+            # Download revenue pivot
+            csv = revenue_pivot_table.reset_index().to_csv(index=False)
+            st.download_button(
+                label="📥 Download Revenue Pivot",
+                data=csv,
+                file_name="revenue_pivot.csv",
                 mime="text/csv"
             )
             
             st.markdown("---")
             
-            # Alternative view: Campaign-wise daily summary
-            st.write("### Campaign-wise Daily Summary")
-            campaign_daily = daily_campaign_data.groupby('Campaigns').apply(
-                lambda x: x.groupby('Date').agg({
-                    'Impressions': 'sum',
-                    'Revenue (INR)': 'sum'
-                }).reset_index()
-            ).reset_index(drop=True)
-            
-            # Show by campaign
-            unique_campaigns = daily_campaign_data['Campaigns'].unique()
-            for campaign in sorted(unique_campaigns):
-                campaign_data = display_vertical[display_vertical['Campaign'] == campaign].copy()
-                if len(campaign_data) > 0:
+            # Alternative view: Campaign-wise daily summary with expanders
+            st.write("### Campaign-wise Daily Details")
+            unique_campaigns = sorted(daily_campaign_data['Campaigns'].unique())
+            for campaign in unique_campaigns:
+                campaign_daily_data = daily_campaign_data[daily_campaign_data['Campaigns'] == campaign].copy()
+                campaign_daily_data = campaign_daily_data.dropna(subset=['Date']).sort_values('Date')
+                
+                if len(campaign_daily_data) > 0:
                     with st.expander(f"📊 {campaign}"):
-                        st.dataframe(campaign_data, use_container_width=True)
+                        campaign_summary = campaign_daily_data.groupby('Date').agg({
+                            'Impressions': 'sum',
+                            'Revenue (INR)': 'sum',
+                            'Requests': 'sum',
+                            'Schedule Impression': 'first'
+                        }).reset_index()
+                        campaign_summary['Date'] = campaign_summary['Date'].dt.strftime("%d-%b-%Y")
+                        campaign_summary['Impressions'] = campaign_summary['Impressions'].astype(int)
+                        campaign_summary['Revenue (₹)'] = campaign_summary['Revenue (INR)'].apply(lambda x: f"₹{x:,.0f}")
+                        campaign_summary['Requests'] = campaign_summary['Requests'].astype(int)
+                        campaign_summary['Delivery %'] = (campaign_summary['Impressions'] / campaign_summary['Schedule Impression'].replace(0, 1) * 100).round(2).clip(upper=100)
+                        
+                        display_cols = campaign_summary[['Date', 'Impressions', 'Revenue (₹)', 'Requests', 'Delivery %']]
+                        st.dataframe(display_cols, use_container_width=True)
             
             st.markdown("---")
     except Exception as e:
