@@ -7,10 +7,10 @@ import numpy as np
 from io import BytesIO
 
 # Page configuration
-st.set_page_config(page_title="Marketing Analytics Dashboard", layout="wide")
+st.set_page_config(page_title="Campaign Analytics Dashboard", layout="wide")
 
 # Title
-st.title("📊 Marketing Analytics Dashboard")
+st.title("📊 Campaign Analytics Dashboard")
 st.markdown("---")
 
 # File upload section

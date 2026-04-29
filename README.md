@@ -1,6 +1,6 @@
-# 📊 Marketing Analytics Dashboard
+# 📊 Campaign Analytics Dashboard
 
-An interactive Streamlit dashboard for analyzing marketing campaign performance with hierarchical drill-down capabilities.
+An interactive Streamlit dashboard for analyzing campaign performance with hierarchical drill-down capabilities.
 
 ## Features
 
