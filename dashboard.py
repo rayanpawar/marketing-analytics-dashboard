@@ -369,6 +369,20 @@ with tab5:
             with col4:
                 st.metric("Total Days", len(daily_summary))
             
+            # Simple day-wise breakdown
+            st.write("### 📅 Day-wise Breakdown")
+            day_breakdown = ""
+            for idx, row in daily_summary.iterrows():
+                day_num = idx + 1
+                date_str = row['Date'].strftime("%d-%b-%Y") if pd.notna(row['Date']) else "N/A"
+                impressions = int(row['Impressions'])
+                revenue = row['Revenue (INR)']
+                requests = int(row['Requests'])
+                ctr = row['CTR%']
+                day_breakdown += f"**Day {day_num} ({date_str}):** {impressions:,} Impressions | ₹{revenue:,.0f} Revenue | {requests:,} Requests | CTR: {ctr:.2f}%\n\n"
+            
+            st.markdown(day_breakdown)
+            
             # Day-wise revenue trend
             fig3 = px.line(daily_summary, x='Date', y='Revenue (INR)',
                           title="Daily Revenue Consumption Trend", markers=True, 
