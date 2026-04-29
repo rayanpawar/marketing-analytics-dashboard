@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import numpy as np
+from io import BytesIO
 
 # Page configuration
 st.set_page_config(page_title="Marketing Analytics Dashboard", layout="wide")
@@ -12,10 +13,20 @@ st.set_page_config(page_title="Marketing Analytics Dashboard", layout="wide")
 st.title("📊 Marketing Analytics Dashboard")
 st.markdown("---")
 
+# File upload section
+st.write("### 📁 Upload Daily Report Files")
+uploaded_files = st.file_uploader("Upload Excel files for daily reports", type=["xls", "xlsx"], accept_multiple_files=True, key="daily_reports")
+
 # Load data
 @st.cache_data
-def load_data():
-    df = pd.read_excel("Analytics.xls", sheet_name="Analytics")
+def load_data(file_path=None):
+    """Load default Analytics.xls file"""
+    try:
+        df = pd.read_excel(file_path or "Analytics.xls", sheet_name="Analytics")
+    except:
+        # Try without sheet_name if it fails
+        df = pd.read_excel(file_path or "Analytics.xls")
+    
     # Convert date columns properly
     for col in ['Date', 'Date Start', 'Date End']:
         if col in df.columns:
@@ -34,7 +45,51 @@ def load_data():
     
     return df
 
-df = load_data()
+def load_uploaded_files(uploaded_files_list):
+    """Load and combine multiple uploaded Excel files"""
+    all_dfs = []
+    
+    for idx, uploaded_file in enumerate(uploaded_files_list):
+        try:
+            file_date = uploaded_file.name.replace('.xls', '').replace('.xlsx', '')
+            df = pd.read_excel(uploaded_file, sheet_name="Analytics")
+            
+            # Convert date columns
+            for col in ['Date', 'Date Start', 'Date End']:
+                if col in df.columns:
+                    try:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                    except:
+                        pass
+            
+            # Convert numeric columns
+            for col in ['Schedule Impression', 'Schedule Click']:
+                if col in df.columns:
+                    try:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                    except:
+                        pass
+            
+            df['File_Date'] = file_date
+            all_dfs.append(df)
+        except Exception as e:
+            st.warning(f"Error loading {uploaded_file.name}: {str(e)}")
+    
+    if all_dfs:
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        return combined_df
+    return None
+
+# Load data source
+if uploaded_files:
+    df = load_uploaded_files(uploaded_files)
+    st.success(f"✅ Loaded {len(uploaded_files)} file(s)")
+else:
+    df = load_data()
+
+if df is None or len(df) == 0:
+    st.error("No data loaded. Please upload Excel files or ensure Analytics.xls exists.")
+    st.stop()
 
 # Display basic stats
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -74,6 +129,15 @@ st.markdown("---")
 
 # Cascading Filters
 st.sidebar.title("🔍 Hierarchical Filters")
+
+# File Date Filter (if multiple files uploaded)
+if 'File_Date' in df.columns:
+    file_dates = sorted(df['File_Date'].unique())
+    selected_file_date = st.sidebar.selectbox("📅 Report Date", ["All"] + list(file_dates))
+    if selected_file_date != "All":
+        df = df[df['File_Date'] == selected_file_date]
+else:
+    selected_file_date = None
 
 # Release Order Filter
 release_orders = sorted(df['Release Order'].unique())
