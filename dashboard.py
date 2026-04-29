@@ -458,6 +458,61 @@ with tab5:
             )
             
             st.markdown("---")
+            st.write("### 📢 Campaign Impressions by Publisher")
+            
+            # Create pivot for impressions by campaign and publisher
+            campaign_publisher = filtered_df.groupby(['Campaigns', 'Publisher'])['Impressions'].sum().reset_index()
+            campaign_publisher_pivot = campaign_publisher.pivot(index='Campaigns', columns='Publisher', values='Impressions').fillna(0).astype(int)
+            
+            st.dataframe(campaign_publisher_pivot, use_container_width=True)
+            
+            # Download campaign-publisher breakdown
+            csv = campaign_publisher_pivot.reset_index().to_csv(index=False)
+            st.download_button(
+                label="📥 Download Campaign-Publisher Breakdown",
+                data=csv,
+                file_name="campaign_publisher_breakdown.csv",
+                mime="text/csv"
+            )
+            
+            st.markdown("---")
+            st.write("### 📊 Publisher Share by Campaign (%)")
+            
+            # Calculate percentage share of each publisher for each campaign
+            campaign_publisher_pct = campaign_publisher.copy()
+            campaign_publisher_pct['Total'] = campaign_publisher_pct.groupby('Campaigns')['Impressions'].transform('sum')
+            campaign_publisher_pct['Share %'] = (campaign_publisher_pct['Impressions'] / campaign_publisher_pct['Total'] * 100).round(2)
+            
+            pct_display = campaign_publisher_pct[['Campaigns', 'Publisher', 'Impressions', 'Share %']].sort_values(['Campaigns', 'Share %'], ascending=[True, False])
+            pct_display.columns = ['Campaign', 'Publisher', 'Impressions', 'Share %']
+            pct_display['Share %'] = pct_display['Share %'].apply(lambda x: f"{x:.2f}%")
+            st.dataframe(pct_display, use_container_width=True)
+            
+            # Download publisher share percentage
+            csv = campaign_publisher_pct[['Campaigns', 'Publisher', 'Impressions', 'Share %']].to_csv(index=False)
+            st.download_button(
+                label="📥 Download Publisher Share %",
+                data=csv,
+                file_name="publisher_share_percentage.csv",
+                mime="text/csv"
+            )
+            
+            # Chart: Publisher distribution by campaign
+            fig_pub = px.bar(campaign_publisher_pct, x='Campaigns', y='Impressions', color='Publisher',
+                            title="Campaign Impressions by Publisher", barmode='stack')
+            st.plotly_chart(fig_pub, use_container_width=True)
+            
+            # Pie charts for each campaign's publisher distribution
+            st.write("### Publisher Distribution per Campaign")
+            unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
+            for campaign in unique_campaigns_list:
+                campaign_pub_data = campaign_publisher_pct[campaign_publisher_pct['Campaigns'] == campaign]
+                if len(campaign_pub_data) > 0:
+                    fig_pie = px.pie(campaign_pub_data, values='Impressions', names='Publisher',
+                                    title=f"{campaign} - Publisher Distribution")
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            
+            st.markdown("---")
             
             # Alternative view: Campaign-wise daily summary with expanders
             st.write("### Campaign-wise Daily Details")
