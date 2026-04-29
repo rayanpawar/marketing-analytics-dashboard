@@ -10,7 +10,41 @@ from io import BytesIO
 st.set_page_config(page_title="Campaign Analytics Dashboard", layout="wide")
 
 # Title
-st.title("📊 Campaign Analytics Dashboard")
+st.title("� Campaign Analytics Dashboard")
+
+# Password Protection
+def check_password():
+    """Returns `True` if the user had the correct password."""
+
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        if st.session_state["password"] == st.secrets.get("dashboard_password", ""):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # don't store password
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input for password.
+        st.warning("🔐 This dashboard contains confidential data. Please enter the password to proceed.")
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password not correct, show input + error.
+        st.error("😕 Password incorrect")
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    else:
+        # Password correct.
+        return True
+
+if not check_password():
+    st.stop()
+
 st.markdown("---")
 
 # File upload section
