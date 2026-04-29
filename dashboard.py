@@ -15,7 +15,7 @@ st.markdown("---")
 # Load data
 @st.cache_data
 def load_data():
-    df = pd.read_excel("/Users/rayanpawar/Downloads/Analytics.xls", sheet_name="Analytics")
+    df = pd.read_excel("Analytics.xls", sheet_name="Analytics")
     # Convert date columns properly
     for col in ['Date', 'Date Start', 'Date End']:
         if col in df.columns:
