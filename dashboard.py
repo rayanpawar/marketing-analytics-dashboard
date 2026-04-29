@@ -369,19 +369,18 @@ with tab5:
             with col4:
                 st.metric("Total Days", len(daily_summary))
             
-            # Simple day-wise breakdown
+            # Day-wise breakdown in column format
             st.write("### 📅 Day-wise Breakdown")
-            day_breakdown = ""
-            for idx, row in daily_summary.iterrows():
-                day_num = idx + 1
-                date_str = row['Date'].strftime("%d-%b-%Y") if pd.notna(row['Date']) else "N/A"
-                impressions = int(row['Impressions'])
-                revenue = row['Revenue (INR)']
-                requests = int(row['Requests'])
-                ctr = row['CTR%']
-                day_breakdown += f"**Day {day_num} ({date_str}):** {impressions:,} Impressions | ₹{revenue:,.0f} Revenue | {requests:,} Requests | CTR: {ctr:.2f}%\n\n"
+            day_wise_df = daily_summary.copy()
+            day_wise_df['Day'] = [f"Day {i+1}" for i in range(len(day_wise_df))]
+            day_wise_df['Date'] = day_wise_df['Date'].dt.strftime("%d-%b-%Y")
+            day_wise_df['Impressions'] = day_wise_df['Impressions'].astype(int)
+            day_wise_df['Revenue (₹)'] = day_wise_df['Revenue (INR)'].apply(lambda x: f"₹{x:,.0f}")
+            day_wise_df['Requests'] = day_wise_df['Requests'].astype(int)
+            day_wise_df['CTR%'] = day_wise_df['CTR%'].apply(lambda x: f"{x:.2f}%")
             
-            st.markdown(day_breakdown)
+            display_daywise = day_wise_df[['Day', 'Date', 'Impressions', 'Revenue (₹)', 'Requests', 'CTR%']]
+            st.dataframe(display_daywise, use_container_width=True)
             
             # Day-wise revenue trend
             fig3 = px.line(daily_summary, x='Date', y='Revenue (INR)',
