@@ -520,22 +520,46 @@ with tab3:
         
         # Check for RO Budget Loss Alerts
         st.markdown("---")
-        st.write("### 🚨 Budget Loss Alerts")
+        st.write("### 🚨 Budget Status Alerts")
         
-        loss_ros = release_order_df[release_order_df['Budget Remaining'] < 0]
+        # Alert 1: Revenue exceeded budget (overspend)
+        overspend_ros = release_order_df[release_order_df['Budget Remaining'] < 0]
         
-        if len(loss_ros) > 0:
-            st.error(f"⚠️ {len(loss_ros)} Release Order(s) in LOSS - Revenue exceeded budget!")
+        # Alert 2: Revenue below budget (underspend)
+        underspend_ros = release_order_df[release_order_df['Budget Remaining'] > 0]
+        
+        alert_exists = False
+        
+        if len(overspend_ros) > 0:
+            alert_exists = True
+            st.error(f"🔴 {len(overspend_ros)} Release Order(s) in LOSS - Revenue exceeded budget!")
+            st.write("**Overspend Alert:** Revenue is more than allocated budget")
             
-            loss_display = loss_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
-            loss_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Loss (₹)']
-            loss_display['Budget (₹)'] = loss_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            loss_display['Revenue (₹)'] = loss_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            loss_display['Loss (₹)'] = loss_display['Loss (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
+            overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Overspend (₹)']
+            overspend_display['Budget (₹)'] = overspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            overspend_display['Revenue (₹)'] = overspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            overspend_display['Overspend (₹)'] = overspend_display['Overspend (₹)'].apply(lambda x: f"₹{abs(x):,.0f}")
             
-            st.dataframe(loss_display, use_container_width=True)
-        else:
-            st.success("✅ All Release Orders are within budget!")
+            st.dataframe(overspend_display, use_container_width=True)
+            st.markdown("---")
+        
+        if len(underspend_ros) > 0:
+            alert_exists = True
+            st.warning(f"🟡 {len(underspend_ros)} Release Order(s) - Revenue below budget (underspend)")
+            st.write("**Underspend Alert:** Revenue is less than allocated budget")
+            
+            underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
+            underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Remaining (₹)']
+            underspend_display['Budget (₹)'] = underspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            underspend_display['Revenue (₹)'] = underspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            underspend_display['Remaining (₹)'] = underspend_display['Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            
+            st.dataframe(underspend_display, use_container_width=True)
+            st.markdown("---")
+        
+        if not alert_exists:
+            st.success("✅ All Release Orders are balanced - Revenue matches budget targets!")
         
         st.markdown("---")
         
