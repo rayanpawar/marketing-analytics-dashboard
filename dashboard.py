@@ -10,7 +10,7 @@ from io import BytesIO
 st.set_page_config(page_title="Campaign Analytics Dashboard", layout="wide")
 
 # Title
-st.title("� Campaign Analytics Dashboard")
+st.title("📊 Campaign Analytics Dashboard")
 
 # Password Protection
 def check_password():
