@@ -433,7 +433,7 @@ with tab2:
             st.error(f"Error creating CTR chart: {str(e)}")
 
 with tab3:
-    st.subheader("� Release Order Report - Total Revenue from Campaign Budget")
+    st.subheader("📊 Release Order Report - Budget & Revenue Analysis")
     
     try:
         # Group by Release Order
@@ -442,41 +442,94 @@ with tab3:
             'Impressions': 'sum',
             'Requests': 'sum',
             'Revenue (INR)': 'sum',
-            'Campaign Budget': 'first'
+            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count'
         }).reset_index()
         
-        release_order_df.columns = ['Release Order', 'Line Items', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Budget']
+        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget']
         release_order_df = release_order_df.sort_values('Total Revenue', ascending=False)
         
         # Calculate metrics
-        release_order_df['CPM'] = (release_order_df['Total Revenue'] / release_order_df['Total Impressions'] * 1000).round(2)
+        if 'Total Impressions' in release_order_df.columns:
+            release_order_df['CPM'] = (release_order_df['Total Revenue'] / release_order_df['Total Impressions'].replace(0, 1) * 1000).round(2)
         
-        col1, col2, col3 = st.columns(3)
+        if 'Total Budget' in release_order_df.columns:
+            release_order_df['Budget Utilization %'] = (release_order_df['Total Revenue'] / release_order_df['Total Budget'].replace(0, 1) * 100).round(2)
+            release_order_df['Budget Remaining'] = release_order_df['Total Budget'] - release_order_df['Total Revenue']
+        
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Revenue", f"₹{release_order_df['Total Revenue'].sum():,.0f}")
+            st.metric("Total Budget", f"₹{release_order_df['Total Budget'].sum():,.0f}")
         with col2:
-            st.metric("Release Orders", len(release_order_df))
+            st.metric("Total Revenue", f"₹{release_order_df['Total Revenue'].sum():,.0f}")
         with col3:
+            st.metric("Release Orders", len(release_order_df))
+        with col4:
             st.metric("Avg Revenue per RO", f"₹{release_order_df['Total Revenue'].mean():,.0f}")
         
-        st.write("### Release Order Revenue Details")
-        st.dataframe(release_order_df, use_container_width=True)
+        st.markdown("---")
+        st.write("### 📋 RO-wise Budget & Revenue Details")
         
-        # Visualization
-        fig = px.pie(release_order_df.head(15), values='Total Revenue', names='Release Order', 
-                    title="Revenue Distribution by Release Order")
-        st.plotly_chart(fig, use_container_width=True)
+        # Create display table
+        display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining', 'Total Impressions', 'CPM']].copy()
+        display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Utilization %', 'Budget Remaining (₹)', 'Impressions', 'CPM']
+        display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%")
+        display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        display_ro['Impressions'] = display_ro['Impressions'].astype(int)
+        display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
+        
+        st.dataframe(display_ro, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Visualizations
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Budget vs Revenue comparison
+            fig = go.Figure()
+            fig.add_trace(go.Bar(name='Budget', x=release_order_df['Release Order'], y=release_order_df['Total Budget'], marker_color='lightcoral'))
+            fig.add_trace(go.Bar(name='Revenue', x=release_order_df['Release Order'], y=release_order_df['Total Revenue'], marker_color='lightgreen'))
+            fig.update_layout(title='RO Budget vs Revenue', barmode='group', height=400)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Budget Utilization %
+            fig2 = px.bar(release_order_df, x='Release Order', y='Budget Utilization %', 
+                         title="RO Budget Utilization %", color='Budget Utilization %',
+                         color_continuous_scale='RdYlGn')
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        st.markdown("---")
+        st.write("### 💰 Overall Budget Summary")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            total_budget = release_order_df['Total Budget'].sum()
+            st.metric("🎯 Total Budget Allocated", f"₹{total_budget:,.0f}")
+        with col2:
+            total_revenue = release_order_df['Total Revenue'].sum()
+            st.metric("💵 Total Revenue Generated", f"₹{total_revenue:,.0f}")
+        with col3:
+            total_remaining = (release_order_df['Total Budget'] - release_order_df['Total Revenue']).sum()
+            st.metric("📌 Total Budget Remaining", f"₹{total_remaining:,.0f}")
+        with col4:
+            overall_utilization = (total_revenue / total_budget * 100) if total_budget > 0 else 0
+            st.metric("📊 Overall Budget Utilization", f"{overall_utilization:.2f}%")
         
         # Download Report
-        csv = release_order_df.to_csv(index=False)
+        csv = display_ro.to_csv(index=False)
         st.download_button(
-            label="📥 Download Release Order Report",
+            label="📥 Download RO Budget Report",
             data=csv,
-            file_name="release_order_report.csv",
+            file_name="ro_budget_report.csv",
             mime="text/csv"
         )
     except Exception as e:
         st.error(f"Error generating Release Order Report: {str(e)}")
+
+
 
 with tab4:
     st.subheader("� Line Item Report")
