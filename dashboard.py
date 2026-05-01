@@ -436,17 +436,20 @@ with tab3:
     st.subheader("📊 Release Order Report - Budget & Revenue Analysis")
     
     try:
-        # Group by Release Order
+        # Group by Release Order with Publisher info
         release_order_df = filtered_df.groupby('Release Order').agg({
             'Campaigns': 'count',
             'Impressions': 'sum',
             'Requests': 'sum',
             'Revenue (INR)': 'sum',
-            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count'
+            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',
+            'Publisher': 'first' if 'Publisher' in df.columns else 'count'
         }).reset_index()
         
-        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget']
-        release_order_df = release_order_df.sort_values('Total Revenue', ascending=False)
+        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher']
+        # Extract RO number and sort in ascending order
+        release_order_df['RO_Number'] = release_order_df['Release Order'].str.extract(r'(\d+)').astype(int, errors='ignore')
+        release_order_df = release_order_df.sort_values('Release Order', ascending=True)
         
         # Calculate metrics
         if 'Total Impressions' in release_order_df.columns:
@@ -469,7 +472,7 @@ with tab3:
         st.markdown("---")
         st.write("### 📋 RO-wise Budget & Revenue Details")
         
-        # Create display table
+        # Create display table with reordered columns: RO, Budget, Revenue, Utilization, Remaining
         display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining', 'Total Impressions', 'CPM']].copy()
         display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Utilization %', 'Budget Remaining (₹)', 'Impressions', 'CPM']
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
@@ -480,6 +483,16 @@ with tab3:
         display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
         
         st.dataframe(display_ro, use_container_width=True)
+        
+        st.markdown("---")
+        st.write("### 📊 Publisher Distribution by Release Order (Pie Chart)")
+        
+        # Pie chart for publisher distribution
+        if 'Publisher' in release_order_df.columns:
+            publisher_ro_dist = filtered_df.groupby(['Release Order', 'Publisher']).size().reset_index(name='Count')
+            fig_pie = px.pie(publisher_ro_dist, values='Count', names='Release Order',
+                            title="Release Orders by Publisher Distribution", hover_data=['Publisher'])
+            st.plotly_chart(fig_pie, use_container_width=True)
         
         st.markdown("---")
         
@@ -535,10 +548,11 @@ with tab3:
             st.error(f"🔴 {len(overspend_ros)} Release Order(s) in LOSS - Revenue exceeded budget!")
             st.write("**Overspend Alert:** Revenue is more than allocated budget")
             
-            overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
-            overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Overspend (₹)']
+            overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining']].copy()
+            overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Utilization %', 'Overspend (₹)']
             overspend_display['Budget (₹)'] = overspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             overspend_display['Revenue (₹)'] = overspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            overspend_display['Utilization %'] = overspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             overspend_display['Overspend (₹)'] = overspend_display['Overspend (₹)'].apply(lambda x: f"₹{abs(x):,.0f}")
             
             st.dataframe(overspend_display, use_container_width=True)
@@ -549,10 +563,11 @@ with tab3:
             st.warning(f"🟡 {len(underspend_ros)} Release Order(s) - Revenue below budget (underspend)")
             st.write("**Underspend Alert:** Revenue is less than allocated budget")
             
-            underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
-            underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Remaining (₹)']
+            underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining']].copy()
+            underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Utilization %', 'Remaining (₹)']
             underspend_display['Budget (₹)'] = underspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             underspend_display['Revenue (₹)'] = underspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            underspend_display['Utilization %'] = underspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             underspend_display['Remaining (₹)'] = underspend_display['Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
             
             st.dataframe(underspend_display, use_container_width=True)
@@ -955,6 +970,15 @@ with tab7:
             if 'Schedule Impression' in df.columns:
                 publisher_consumption['Consumption %'] = (publisher_consumption['Impressions'] / publisher_consumption['Schedule Impression'].replace(0, 1) * 100).round(2)
             
+            # Pie chart for overall publisher distribution
+            st.write("### 📊 Overall Publisher Distribution (Pie Chart)")
+            publisher_totals = filtered_df.groupby('Publisher')['Impressions'].sum().reset_index()
+            fig_pie_pub = px.pie(publisher_totals, values='Impressions', names='Publisher',
+                                title="Overall Impressions Share by Publisher")
+            st.plotly_chart(fig_pie_pub, use_container_width=True)
+            
+            st.markdown("---")
+            
             # Display by Publisher
             publishers = sorted(filtered_df['Publisher'].unique())
             for publisher in publishers:
@@ -1112,6 +1136,58 @@ with tab8:
                     st.markdown("---")
             else:
                 st.success("✅ All campaigns are above threshold!")
+            
+            # DAY-WISE ALERTS FOR CAMPAIGNS AND BUDGET
+            st.write("### 📅 Day-wise Campaign & Budget Alerts")
+            
+            if 'Date' in filtered_df.columns:
+                daily_filtered = filtered_df.dropna(subset=['Date']).copy()
+                
+                if len(daily_filtered) > 0:
+                    # Daily campaign metrics
+                    daily_campaign_alerts = daily_filtered.groupby(['Date', 'Campaigns']).agg({
+                        'CTR%': 'mean' if 'CTR%' in df.columns else 'count',
+                        'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                        'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
+                        'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                        'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count'
+                    }).reset_index()
+                    
+                    daily_campaign_alerts['Date'] = daily_campaign_alerts['Date'].dt.strftime("%d-%b-%Y")
+                    
+                    if 'Requests' in df.columns:
+                        daily_requests = daily_filtered.groupby(['Date', 'Campaigns'])['Requests'].sum().reset_index()
+                        daily_requests['Date'] = daily_requests['Date'].dt.strftime("%d-%b-%Y")
+                        daily_campaign_alerts = daily_campaign_alerts.merge(daily_requests, on=['Date', 'Campaigns'])
+                        daily_campaign_alerts['PTR%'] = (daily_campaign_alerts['Requests'] / daily_campaign_alerts['Impressions'].replace(0, 1) * 100).round(2)
+                    
+                    if 'Schedule Impression' in df.columns:
+                        daily_campaign_alerts['Consumption %'] = (daily_campaign_alerts['Impressions'] / daily_campaign_alerts['Schedule Impression'].replace(0, 1) * 100).round(2).clip(upper=100)
+                    
+                    # Check for day-wise CTR alerts
+                    daily_low_ctr = daily_campaign_alerts[daily_campaign_alerts['CTR%'] < ctr_threshold]
+                    if len(daily_low_ctr) > 0:
+                        st.error(f"⚠️ {len(daily_low_ctr)} day-wise campaign(s) have CTR% below {ctr_threshold}%")
+                        daily_ctr_display = daily_low_ctr[['Date', 'Campaigns', 'CTR%']].copy()
+                        daily_ctr_display.columns = ['Date', 'Campaign', 'CTR%']
+                        daily_ctr_display['CTR%'] = daily_ctr_display['CTR%'].apply(lambda x: f"{x:.2f}%")
+                        st.dataframe(daily_ctr_display, use_container_width=True)
+                    
+                    # Check for day-wise budget underspend alerts
+                    if 'Revenue (INR)' in daily_campaign_alerts.columns and 'Campaign Budget' in daily_campaign_alerts.columns:
+                        daily_campaign_alerts['Budget Remaining'] = daily_campaign_alerts['Campaign Budget'] - daily_campaign_alerts['Revenue (INR)']
+                        daily_underspend = daily_campaign_alerts[daily_campaign_alerts['Budget Remaining'] > 0]
+                        
+                        if len(daily_underspend) > 0:
+                            st.warning(f"🟡 {len(daily_underspend)} day-wise campaign(s) have budget underspend")
+                            daily_budget_display = daily_underspend[['Date', 'Campaigns', 'Campaign Budget', 'Revenue (INR)', 'Budget Remaining']].copy()
+                            daily_budget_display.columns = ['Date', 'Campaign', 'Budget (₹)', 'Revenue (₹)', 'Remaining (₹)']
+                            daily_budget_display['Budget (₹)'] = daily_budget_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                            daily_budget_display['Revenue (₹)'] = daily_budget_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                            daily_budget_display['Remaining (₹)'] = daily_budget_display['Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                            st.dataframe(daily_budget_display, use_container_width=True)
+                    
+                    st.markdown("---")
             
             # Overall summary
             st.write("### 📊 Campaign Performance Summary")
