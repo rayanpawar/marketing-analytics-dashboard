@@ -280,6 +280,11 @@ if "Campaign Status" in available_groupby:
         statuses = sorted(df['Campaign Status'].unique())
         selected_filters['Campaign Status'] = st.sidebar.multiselect("Status", statuses, default=statuses)
 
+# Search Bar for Campaigns
+st.sidebar.markdown("---")
+st.sidebar.write("🔎 **Search Campaigns**")
+campaign_search = st.sidebar.text_input("Search by campaign name", placeholder="e.g., Brand, Promo...")
+
 # Apply filters
 filtered_df = df.copy()
 
@@ -288,6 +293,11 @@ for filter_name, filter_value in selected_filters.items():
         filtered_df = filtered_df[filtered_df[filter_name].isin(filter_value)]
     elif filter_value and filter_value != "All":
         filtered_df = filtered_df[filtered_df[filter_name] == filter_value]
+
+# Apply campaign search filter
+if campaign_search and 'Campaigns' in filtered_df.columns:
+    filtered_df = filtered_df[filtered_df['Campaigns'].str.contains(campaign_search, case=False, na=False)]
+    st.sidebar.success(f"✅ Found {len(filtered_df)} records matching '{campaign_search}'")
 
 # Tab navigation
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
