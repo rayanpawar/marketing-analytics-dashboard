@@ -489,7 +489,7 @@ with tab2:
             st.error(f"Error creating CTR chart: {str(e)}")
 
 with tab3:
-    st.subheader("📊 Release Order Report - Budget & Revenue Analysis")
+    st.subheader("� Release Order Revenue Report - Budget & Revenue Analysis")
     
     try:
         # Group by Release Order with Publisher info
