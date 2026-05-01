@@ -47,43 +47,121 @@ if not check_password():
 
 st.markdown("---")
 
-# File upload section
-st.write("### 📁 Upload Daily Report Files")
-uploaded_files = st.file_uploader("Upload Excel files for daily reports", type=["xls", "xlsx"], accept_multiple_files=True, key="daily_reports")
+# Initialize session state for workflow
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = None
+if 'excel_details_submitted' not in st.session_state:
+    st.session_state.excel_details_submitted = False
+if 'sheet_name' not in st.session_state:
+    st.session_state.sheet_name = "Analytics"
 
-# Initialize session state for generate report button
-if 'generate_report' not in st.session_state:
-    st.session_state.generate_report = False
+# STEP 1: FILE UPLOAD
+st.write("### 📁 STEP 1: Upload Excel File")
+uploaded_files = st.file_uploader("Upload Excel file for analysis", type=["xls", "xlsx"], accept_multiple_files=False, key="daily_reports")
 
-# Show "Give Report" button only if files are uploaded
 if uploaded_files:
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("📊 Give Report", use_container_width=True, key="give_report_btn"):
-            st.session_state.generate_report = True
-    with col2:
-        st.info(f"✅ {len(uploaded_files)} file(s) ready to report")
+    st.session_state.uploaded_files = uploaded_files
+    st.success(f"✅ File uploaded: {uploaded_files.name}")
+    
+    # Get available sheet names
+    try:
+        xls = pd.ExcelFile(uploaded_files)
+        available_sheets = xls.sheet_names
+    except Exception as e:
+        st.error(f"Error reading Excel file: {str(e)}")
+        available_sheets = []
+    
+    # STEP 2: EXCEL DETAILS
+    st.markdown("---")
+    st.write("### 📊 STEP 2: Configure Excel Details")
+    
+    with st.form("excel_config_form"):
+        st.write("Please provide details about your Excel file:")
+        
+        # Show available sheets for selection
+        if available_sheets:
+            st.write(f"**Available sheets:** {', '.join(available_sheets)}")
+            sheet_name_input = st.selectbox(
+                "Select Sheet Name",
+                options=available_sheets,
+                help="Select the sheet in the Excel file to read"
+            )
+        else:
+            sheet_name_input = st.text_input(
+                "Sheet Name",
+                value=st.session_state.sheet_name,
+                help="Enter the name of the sheet in the Excel file to read"
+            )
+        
+        date_columns = st.multiselect(
+            "Date Columns (select all that apply)",
+            options=["Date", "Date Start", "Date End"],
+            default=["Date"],
+            help="Select which columns should be treated as dates"
+        )
+        
+        numeric_columns = st.multiselect(
+            "Numeric Columns (select all that apply)",
+            options=["Impressions", "Requests", "Revenue (INR)", "Schedule Impression", "Schedule Click", "CTR%"],
+            default=["Impressions", "Requests", "Revenue (INR)", "Schedule Impression", "CTR%"],
+            help="Select which columns should be treated as numeric values"
+        )
+        
+        groupby_columns = st.multiselect(
+            "Grouping Columns (for analysis)",
+            options=["Release Order", "Line Item", "Campaigns", "Publisher", "Campaign Status"],
+            default=["Release Order", "Line Item", "Campaigns"],
+            help="Select columns to group data by for analysis"
+        )
+        
+        submit_config = st.form_submit_button("✅ Submit Configuration")
+    
+    if submit_config:
+        st.session_state.sheet_name = sheet_name_input if sheet_name_input else "Analytics"
+        st.session_state.date_columns = date_columns
+        st.session_state.numeric_columns = numeric_columns
+        st.session_state.groupby_columns = groupby_columns
+        st.session_state.excel_details_submitted = True
+        st.success("Configuration saved! Processing data...")
+        st.rerun()
+
+# If file upload and configuration not done, stop here
+if not st.session_state.excel_details_submitted:
+    st.info("👆 Please upload a file and configure Excel details to continue")
+    st.stop()
 
 # Load data
 @st.cache_data
-def load_data(file_path=None):
-    """Load default Analytics.xls file"""
+def load_data(file_path=None, sheet_name_param="Analytics"):
+    """Load Excel file with specified sheet"""
     try:
-        df = pd.read_excel(file_path or "Analytics.xls", sheet_name="Analytics")
+        df = pd.read_excel(file_path or "Analytics.xls", sheet_name=sheet_name_param)
     except:
         # Try without sheet_name if it fails
-        df = pd.read_excel(file_path or "Analytics.xls")
+        try:
+            df = pd.read_excel(file_path or "Analytics.xls")
+        except:
+            return None
     
-    # Convert date columns properly
-    for col in ['Date', 'Date Start', 'Date End']:
+    return df
+
+def process_data(df, date_cols, numeric_cols):
+    """Process dataframe with specified column types"""
+    if df is None:
+        return None
+    
+    df = df.copy()
+    
+    # Convert date columns
+    for col in date_cols:
         if col in df.columns:
             try:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
             except:
                 pass
     
-    # Convert Schedule Impression and Schedule Click to numeric
-    for col in ['Schedule Impression', 'Schedule Click']:
+    # Convert numeric columns
+    for col in numeric_cols:
         if col in df.columns:
             try:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -92,53 +170,30 @@ def load_data(file_path=None):
     
     return df
 
-def load_uploaded_files(uploaded_files_list):
-    """Load and combine multiple uploaded Excel files"""
-    all_dfs = []
-    
-    for idx, uploaded_file in enumerate(uploaded_files_list):
-        try:
-            file_date = uploaded_file.name.replace('.xls', '').replace('.xlsx', '')
-            df = pd.read_excel(uploaded_file, sheet_name="Analytics")
-            
-            # Convert date columns
-            for col in ['Date', 'Date Start', 'Date End']:
-                if col in df.columns:
-                    try:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-                    except:
-                        pass
-            
-            # Convert numeric columns
-            for col in ['Schedule Impression', 'Schedule Click']:
-                if col in df.columns:
-                    try:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    except:
-                        pass
-            
-            df['File_Date'] = file_date
-            all_dfs.append(df)
-        except Exception as e:
-            st.warning(f"Error loading {uploaded_file.name}: {str(e)}")
-    
-    if all_dfs:
-        combined_df = pd.concat(all_dfs, ignore_index=True)
-        return combined_df
-    return None
+def load_uploaded_file(uploaded_file, sheet_name_param="Analytics"):
+    """Load a single uploaded Excel file"""
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name=sheet_name_param)
+        return df
+    except Exception as e:
+        st.warning(f"Error loading {uploaded_file.name}: {str(e)}")
+        return None
 
 # Load data source
-if uploaded_files and st.session_state.generate_report:
-    df = load_uploaded_files(uploaded_files)
-    st.success(f"✅ Loaded {len(uploaded_files)} file(s) - Report Generated!")
-elif not uploaded_files:
-    df = load_data()
+if st.session_state.uploaded_files:
+    df = load_uploaded_file(st.session_state.uploaded_files, st.session_state.sheet_name)
+    df = process_data(df, st.session_state.date_columns, st.session_state.numeric_columns)
+    if df is not None:
+        st.success(f"✅ Data loaded successfully! {len(df)} records found.")
+    else:
+        st.error("Failed to load data from the uploaded file.")
+        st.stop()
 else:
-    st.info("👆 Click 'Give Report' button to generate reports from uploaded files")
+    st.error("No file loaded. Please upload a file first.")
     st.stop()
 
 if df is None or len(df) == 0:
-    st.error("No data loaded. Please upload Excel files or ensure Analytics.xls exists.")
+    st.error("No data loaded. Please ensure the Excel file has valid data.")
     st.stop()
 
 # Display basic stats
@@ -148,94 +203,94 @@ with col1:
     st.metric("Total Records", len(df))
 
 with col2:
-    try:
+    if 'Impressions' in df.columns:
         total_impressions = df['Impressions'].sum()
         st.metric("Total Impressions", f"{int(total_impressions):,}")
-    except:
+    else:
         st.metric("Total Impressions", "N/A")
 
 with col3:
-    try:
+    if 'Requests' in df.columns:
         total_requests = df['Requests'].sum()
         st.metric("Total Requests", f"{int(total_requests):,}")
-    except:
+    else:
         st.metric("Total Requests", "N/A")
 
 with col4:
-    try:
+    if 'Revenue (INR)' in df.columns:
         total_revenue = df['Revenue (INR)'].sum()
         st.metric("Total Revenue", f"₹{total_revenue:,.0f}")
-    except:
+    else:
         st.metric("Total Revenue", "N/A")
 
 with col5:
-    try:
+    if 'CTR%' in df.columns:
         avg_ctr = df['CTR%'].mean()
         st.metric("Avg CTR%", f"{avg_ctr:.2f}%")
-    except:
+    else:
         st.metric("Avg CTR%", "N/A")
 
 st.markdown("---")
 
-# Cascading Filters
+# Cascading Filters - Dynamic based on selected groupby columns
 st.sidebar.title("🔍 Hierarchical Filters")
 
-# File Date Filter (if multiple files uploaded)
-if 'File_Date' in df.columns:
-    file_dates = sorted(df['File_Date'].unique())
-    selected_file_date = st.sidebar.selectbox("📅 Report Date", ["All"] + list(file_dates))
-    if selected_file_date != "All":
-        df = df[df['File_Date'] == selected_file_date]
-else:
-    selected_file_date = None
+# Create filters based on groupby_columns selection
+available_groupby = st.session_state.groupby_columns
+selected_filters = {}
 
-# Release Order Filter
-release_orders = sorted(df['Release Order'].unique())
-selected_ro = st.sidebar.selectbox("📌 Release Order", ["All"] + release_orders)
+# Filter 1: Release Order
+if "Release Order" in available_groupby:
+    if 'Release Order' in df.columns:
+        release_orders = sorted(df['Release Order'].unique())
+        selected_filters['Release Order'] = st.sidebar.selectbox("📌 Release Order", ["All"] + release_orders)
+    
+# Filter 2: Line Item (filtered by Release Order)
+if "Line Item" in available_groupby:
+    if 'Line Item' in df.columns:
+        if selected_filters.get('Release Order') and selected_filters['Release Order'] != "All":
+            line_items = sorted(df[df['Release Order'] == selected_filters['Release Order']]['Line Item'].unique())
+        else:
+            line_items = sorted(df['Line Item'].unique())
+        selected_filters['Line Item'] = st.sidebar.selectbox("📌 Line Item", ["All"] + list(line_items))
 
-# Line Item Filter (filtered by Release Order)
-if selected_ro == "All":
-    line_items = sorted(df['Line Item'].unique())
-else:
-    line_items = sorted(df[df['Release Order'] == selected_ro]['Line Item'].unique())
-selected_li = st.sidebar.selectbox("📌 Line Item", ["All"] + list(line_items))
+# Filter 3: Campaigns (filtered by Line Item)
+if "Campaigns" in available_groupby:
+    if 'Campaigns' in df.columns:
+        if selected_filters.get('Line Item') and selected_filters['Line Item'] != "All":
+            campaigns = sorted(df[df['Line Item'] == selected_filters['Line Item']]['Campaigns'].unique())
+        else:
+            campaigns = sorted(df['Campaigns'].unique())
+        selected_filters['Campaigns'] = st.sidebar.selectbox("📌 Campaign", ["All"] + list(campaigns))
 
-# Campaign Filter (filtered by Line Item)
-if selected_li == "All":
-    if selected_ro == "All":
-        campaigns = sorted(df['Campaigns'].unique())
-    else:
-        campaigns = sorted(df[df['Release Order'] == selected_ro]['Campaigns'].unique())
-else:
-    campaigns = sorted(df[df['Line Item'] == selected_li]['Campaigns'].unique())
-selected_campaign = st.sidebar.selectbox("📌 Campaign", ["All"] + list(campaigns))
+# Filter 4: Publisher
+if "Publisher" in available_groupby:
+    if 'Publisher' in df.columns:
+        publishers = sorted(df['Publisher'].unique())
+        selected_filters['Publisher'] = st.sidebar.selectbox("📌 Publisher", ["All"] + list(publishers))
 
-# Status Filter
-if 'Campaign Status' in df.columns:
-    statuses = sorted(df['Campaign Status'].unique())
-    selected_status = st.sidebar.multiselect("Status", statuses, default=statuses)
-else:
-    selected_status = None
+# Filter 5: Campaign Status
+if "Campaign Status" in available_groupby:
+    if 'Campaign Status' in df.columns:
+        statuses = sorted(df['Campaign Status'].unique())
+        selected_filters['Campaign Status'] = st.sidebar.multiselect("Status", statuses, default=statuses)
 
 # Apply filters
 filtered_df = df.copy()
 
-if selected_ro != "All":
-    filtered_df = filtered_df[filtered_df['Release Order'] == selected_ro]
-
-if selected_li != "All":
-    filtered_df = filtered_df[filtered_df['Line Item'] == selected_li]
-
-if selected_campaign != "All":
-    filtered_df = filtered_df[filtered_df['Campaigns'] == selected_campaign]
-
-if selected_status:
-    filtered_df = filtered_df[filtered_df['Campaign Status'].isin(selected_status)]
+for filter_name, filter_value in selected_filters.items():
+    if filter_name == 'Campaign Status' and filter_value:
+        filtered_df = filtered_df[filtered_df[filter_name].isin(filter_value)]
+    elif filter_value and filter_value != "All":
+        filtered_df = filtered_df[filtered_df[filter_name] == filter_value]
 
 # Tab navigation
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "Raw Data"])
 
 with tab1:
+    selected_ro = selected_filters.get('Release Order', 'All')
+    selected_li = selected_filters.get('Line Item', 'All')
+    
     st.subheader(f"📊 Hierarchical Breakdown - {selected_ro if selected_ro != 'All' else 'All Release Orders'}")
     
     if selected_ro == "All":
@@ -248,61 +303,72 @@ with tab1:
         st.write(f"### 📌 Release Order: {selected_ro}")
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Line Items", ro_data['Line Item'].nunique())
+            if 'Line Item' in df.columns:
+                st.metric("Line Items", ro_data['Line Item'].nunique())
         with col2:
-            st.metric("Campaigns", ro_data['Campaigns'].nunique())
+            if 'Campaigns' in df.columns:
+                st.metric("Campaigns", ro_data['Campaigns'].nunique())
         with col3:
-            st.metric("Total Impressions", f"{ro_data['Impressions'].sum():,}")
+            if 'Impressions' in df.columns:
+                st.metric("Total Impressions", f"{ro_data['Impressions'].sum():,}")
         with col4:
-            st.metric("Total Revenue", f"₹{ro_data['Revenue (INR)'].sum():,.0f}")
+            if 'Revenue (INR)' in df.columns:
+                st.metric("Total Revenue", f"₹{ro_data['Revenue (INR)'].sum():,.0f}")
         with col5:
-            st.metric("Avg CTR%", f"{ro_data['CTR%'].mean():.2f}%")
+            if 'CTR%' in df.columns:
+                st.metric("Avg CTR%", f"{ro_data['CTR%'].mean():.2f}%")
         
         st.markdown("---")
         
         # Line Item Level Breakdown
-        st.write("### 📋 Line Items in this Release Order")
-        li_breakdown = ro_data.groupby('Line Item').agg({
-            'Campaigns': 'nunique',
-            'Impressions': 'sum',
-            'Requests': 'sum',
-            'Revenue (INR)': 'sum',
-            'CTR%': 'mean'
-        }).reset_index().sort_values('Impressions', ascending=False)
-        
-        li_breakdown.columns = ['Line Item', 'Campaigns Count', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']
-        li_breakdown['Revenue (₹)'] = li_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-        li_breakdown['Avg CTR%'] = li_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
-        
-        st.dataframe(li_breakdown, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # Campaign Level Breakdown (if Line Item selected)
-        if selected_li != "All":
-            st.write(f"### 🎯 Campaigns in {selected_li}")
-            campaign_breakdown = ro_data[ro_data['Line Item'] == selected_li].groupby('Campaigns').agg({
-                'Impressions': 'sum',
-                'Requests': 'sum',
-                'Revenue (INR)': 'sum',
-                'CTR%': 'mean',
-                'Schedule Impression': 'first'
+        if 'Line Item' in df.columns and 'Campaigns' in df.columns:
+            st.write("### 📋 Line Items in this Release Order")
+            li_breakdown = ro_data.groupby('Line Item').agg({
+                'Campaigns': 'nunique',
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Requests': 'sum' if 'Requests' in df.columns else 'count',
+                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
             }).reset_index().sort_values('Impressions', ascending=False)
             
-            campaign_breakdown['Delivery %'] = (campaign_breakdown['Impressions'] / campaign_breakdown['Schedule Impression'].replace(0, 1) * 100).round(2)
-            campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled', 'Delivery %']
+            li_breakdown.columns = ['Line Item', 'Campaigns Count', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']
+            li_breakdown['Revenue (₹)'] = li_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            li_breakdown['Avg CTR%'] = li_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
+            
+            st.dataframe(li_breakdown, use_container_width=True)
+            
+            st.markdown("---")
+        
+        # Campaign Level Breakdown (if Line Item selected)
+        if selected_li != "All" and 'Line Item' in df.columns and 'Campaigns' in df.columns:
+            st.write(f"### 🎯 Campaigns in {selected_li}")
+            campaign_breakdown = ro_data[ro_data['Line Item'] == selected_li].groupby('Campaigns').agg({
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Requests': 'sum' if 'Requests' in df.columns else 'count',
+                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                'CTR%': 'mean' if 'CTR%' in df.columns else 'count',
+                'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count'
+            }).reset_index().sort_values('Impressions', ascending=False)
+            
+            if 'Schedule Impression' in df.columns:
+                campaign_breakdown['Delivery %'] = (campaign_breakdown['Impressions'] / campaign_breakdown['Schedule Impression'].replace(0, 1) * 100).round(2)
+                campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled', 'Delivery %']
+            else:
+                campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled']
+            
             campaign_breakdown['Revenue (₹)'] = campaign_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
             campaign_breakdown['Avg CTR%'] = campaign_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
-            campaign_breakdown['Delivery %'] = campaign_breakdown['Delivery %'].apply(lambda x: f"{x:.1f}%")
+            if 'Delivery %' in campaign_breakdown.columns:
+                campaign_breakdown['Delivery %'] = campaign_breakdown['Delivery %'].apply(lambda x: f"{x:.1f}%")
             
             st.dataframe(campaign_breakdown, use_container_width=True)
-        else:
+        elif 'Line Item' in df.columns and 'Campaigns' in df.columns:
             st.write("### 🎯 Select a Line Item to see Campaign Details")
             # Show all campaigns under RO grouped by Line Item
             all_campaigns = ro_data.groupby(['Line Item', 'Campaigns']).agg({
-                'Impressions': 'sum',
-                'Revenue (INR)': 'sum',
-                'CTR%': 'mean'
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
             }).reset_index().sort_values(['Line Item', 'Impressions'], ascending=[True, False])
             
             all_campaigns.columns = ['Line Item', 'Campaign', 'Impressions', 'Revenue (₹)', 'Avg CTR%']
@@ -312,7 +378,7 @@ with tab1:
             st.dataframe(all_campaigns, use_container_width=True)
 
 with tab2:
-    st.subheader("� Performance Metrics")
+    st.subheader("📊 Performance Metrics")
     
     col1, col2 = st.columns(2)
     
