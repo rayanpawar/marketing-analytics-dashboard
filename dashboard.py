@@ -779,7 +779,51 @@ with tab5:
             )
             
             st.markdown("---")
-            st.write("### 📢 Campaign Impressions by Publisher")
+            st.write("### Day-wise Budget by Campaign")
+            
+            # Create pivot for budget
+            if 'Campaign Budget' in daily_campaign_data.columns:
+                budget_pivot = daily_campaign_data.groupby(['Campaigns', 'Date'])['Campaign Budget'].first().reset_index()
+                budget_pivot['Date'] = budget_pivot['Date'].dt.strftime("%d-%b-%Y")
+                budget_pivot_table = budget_pivot.pivot(index='Campaigns', columns='Date', values='Campaign Budget').fillna(0)
+                
+                # Format as currency
+                budget_pivot_display = budget_pivot_table.map(lambda x: f"₹{x:,.0f}")
+                st.dataframe(budget_pivot_display, use_container_width=True)
+                
+                # Download budget pivot
+                csv = budget_pivot_table.reset_index().to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Budget Pivot",
+                    data=csv,
+                    file_name="budget_pivot.csv",
+                    mime="text/csv"
+                )
+                
+                st.markdown("---")
+            
+            st.write("### Day-wise CTR% by Campaign")
+            
+            # Create pivot for CTR%
+            if 'CTR%' in daily_campaign_data.columns:
+                ctr_pivot = daily_campaign_data.groupby(['Campaigns', 'Date'])['CTR%'].mean().reset_index()
+                ctr_pivot['Date'] = ctr_pivot['Date'].dt.strftime("%d-%b-%Y")
+                ctr_pivot_table = ctr_pivot.pivot(index='Campaigns', columns='Date', values='CTR%').fillna(0)
+                
+                # Format as percentage
+                ctr_pivot_display = ctr_pivot_table.map(lambda x: f"{x:.2f}%")
+                st.dataframe(ctr_pivot_display, use_container_width=True)
+                
+                # Download CTR pivot
+                csv = ctr_pivot_table.reset_index().to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CTR% Pivot",
+                    data=csv,
+                    file_name="ctr_pivot.csv",
+                    mime="text/csv"
+                )
+            
+            st.markdown("---")
             
             # Create pivot for impressions by campaign and publisher
             campaign_publisher = filtered_df.groupby(['Campaigns', 'Publisher'])['Impressions'].sum().reset_index()
