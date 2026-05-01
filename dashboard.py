@@ -751,6 +751,14 @@ with tab5:
             daily_data['Delivery %'] = (daily_data['Impressions'] / daily_data['Schedule Impression'].replace(0, 1) * 100).round(2)
             daily_data['Delivery %'] = daily_data['Delivery %'].clip(upper=100)  # Cap at 100%
             
+            # Day-wise summary (overall, not by campaign)
+            daily_summary = daily_campaign_data.groupby('Date').agg({
+                'Impressions': 'sum',
+                'Revenue (INR)': 'sum',
+                'Requests': 'sum',
+                'CTR%': 'mean'
+            }).reset_index().sort_values('Date')
+            
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Total Impressions", f"{daily_data['Impressions'].sum():,}")
