@@ -196,6 +196,11 @@ if df is None or len(df) == 0:
     st.error("No data loaded. Please ensure the Excel file has valid data.")
     st.stop()
 
+# Show available columns for user reference
+with st.expander("📋 Available Columns in Your Data"):
+    st.write("The following columns were detected in your Excel file:")
+    st.write(", ".join(sorted(df.columns.tolist())))
+
 # Display basic stats
 col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -288,94 +293,98 @@ for filter_name, filter_value in selected_filters.items():
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "Raw Data"])
 
 with tab1:
-    selected_ro = selected_filters.get('Release Order', 'All')
-    selected_li = selected_filters.get('Line Item', 'All')
-    
-    st.subheader(f"📊 Hierarchical Breakdown - {selected_ro if selected_ro != 'All' else 'All Release Orders'}")
-    
-    if selected_ro == "All":
-        st.info("Select a Release Order from the left panel to view hierarchical breakdown")
+    if 'Release Order' not in df.columns:
+        st.warning("⚠️ This tab requires 'Release Order' column which is not in your data.")
+        st.info("Please upload a file with Release Order data, or select it from the configuration form.")
     else:
-        # Get data for selected RO
-        ro_data = df[df['Release Order'] == selected_ro]
+        selected_ro = selected_filters.get('Release Order', 'All')
+        selected_li = selected_filters.get('Line Item', 'All')
         
-        # RO Level Metrics
-        st.write(f"### 📌 Release Order: {selected_ro}")
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            if 'Line Item' in df.columns:
-                st.metric("Line Items", ro_data['Line Item'].nunique())
-        with col2:
-            if 'Campaigns' in df.columns:
-                st.metric("Campaigns", ro_data['Campaigns'].nunique())
-        with col3:
-            if 'Impressions' in df.columns:
-                st.metric("Total Impressions", f"{ro_data['Impressions'].sum():,}")
-        with col4:
-            if 'Revenue (INR)' in df.columns:
-                st.metric("Total Revenue", f"₹{ro_data['Revenue (INR)'].sum():,.0f}")
-        with col5:
-            if 'CTR%' in df.columns:
-                st.metric("Avg CTR%", f"{ro_data['CTR%'].mean():.2f}%")
+        st.subheader(f"📊 Hierarchical Breakdown - {selected_ro if selected_ro != 'All' else 'All Release Orders'}")
         
-        st.markdown("---")
-        
-        # Line Item Level Breakdown
-        if 'Line Item' in df.columns and 'Campaigns' in df.columns:
-            st.write("### 📋 Line Items in this Release Order")
-            li_breakdown = ro_data.groupby('Line Item').agg({
-                'Campaigns': 'nunique',
-                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
-                'Requests': 'sum' if 'Requests' in df.columns else 'count',
-                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
-                'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
-            }).reset_index().sort_values('Impressions', ascending=False)
+        if selected_ro == "All":
+            st.info("Select a Release Order from the left panel to view hierarchical breakdown")
+        else:
+            # Get data for selected RO
+            ro_data = df[df['Release Order'] == selected_ro]
             
-            li_breakdown.columns = ['Line Item', 'Campaigns Count', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']
-            li_breakdown['Revenue (₹)'] = li_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            li_breakdown['Avg CTR%'] = li_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
-            
-            st.dataframe(li_breakdown, use_container_width=True)
+            # RO Level Metrics
+            st.write(f"### 📌 Release Order: {selected_ro}")
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                if 'Line Item' in df.columns:
+                    st.metric("Line Items", ro_data['Line Item'].nunique())
+            with col2:
+                if 'Campaigns' in df.columns:
+                    st.metric("Campaigns", ro_data['Campaigns'].nunique())
+            with col3:
+                if 'Impressions' in df.columns:
+                    st.metric("Total Impressions", f"{ro_data['Impressions'].sum():,}")
+            with col4:
+                if 'Revenue (INR)' in df.columns:
+                    st.metric("Total Revenue", f"₹{ro_data['Revenue (INR)'].sum():,.0f}")
+            with col5:
+                if 'CTR%' in df.columns:
+                    st.metric("Avg CTR%", f"{ro_data['CTR%'].mean():.2f}%")
             
             st.markdown("---")
-        
-        # Campaign Level Breakdown (if Line Item selected)
-        if selected_li != "All" and 'Line Item' in df.columns and 'Campaigns' in df.columns:
-            st.write(f"### 🎯 Campaigns in {selected_li}")
-            campaign_breakdown = ro_data[ro_data['Line Item'] == selected_li].groupby('Campaigns').agg({
-                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
-                'Requests': 'sum' if 'Requests' in df.columns else 'count',
-                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
-                'CTR%': 'mean' if 'CTR%' in df.columns else 'count',
-                'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count'
-            }).reset_index().sort_values('Impressions', ascending=False)
             
-            if 'Schedule Impression' in df.columns:
-                campaign_breakdown['Delivery %'] = (campaign_breakdown['Impressions'] / campaign_breakdown['Schedule Impression'].replace(0, 1) * 100).round(2)
-                campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled', 'Delivery %']
-            else:
-                campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled']
+            # Line Item Level Breakdown
+            if 'Line Item' in df.columns and 'Campaigns' in df.columns:
+                st.write("### 📋 Line Items in this Release Order")
+                li_breakdown = ro_data.groupby('Line Item').agg({
+                    'Campaigns': 'nunique',
+                    'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                    'Requests': 'sum' if 'Requests' in df.columns else 'count',
+                    'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                    'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
+                }).reset_index().sort_values('Impressions', ascending=False)
+                
+                li_breakdown.columns = ['Line Item', 'Campaigns Count', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%']
+                li_breakdown['Revenue (₹)'] = li_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                li_breakdown['Avg CTR%'] = li_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
+                
+                st.dataframe(li_breakdown, use_container_width=True)
+                
+                st.markdown("---")
             
-            campaign_breakdown['Revenue (₹)'] = campaign_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            campaign_breakdown['Avg CTR%'] = campaign_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
-            if 'Delivery %' in campaign_breakdown.columns:
-                campaign_breakdown['Delivery %'] = campaign_breakdown['Delivery %'].apply(lambda x: f"{x:.1f}%")
-            
-            st.dataframe(campaign_breakdown, use_container_width=True)
-        elif 'Line Item' in df.columns and 'Campaigns' in df.columns:
-            st.write("### 🎯 Select a Line Item to see Campaign Details")
-            # Show all campaigns under RO grouped by Line Item
-            all_campaigns = ro_data.groupby(['Line Item', 'Campaigns']).agg({
-                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
-                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
-                'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
-            }).reset_index().sort_values(['Line Item', 'Impressions'], ascending=[True, False])
-            
-            all_campaigns.columns = ['Line Item', 'Campaign', 'Impressions', 'Revenue (₹)', 'Avg CTR%']
-            all_campaigns['Revenue (₹)'] = all_campaigns['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            all_campaigns['Avg CTR%'] = all_campaigns['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
-            
-            st.dataframe(all_campaigns, use_container_width=True)
+            # Campaign Level Breakdown (if Line Item selected)
+            if selected_li != "All" and 'Line Item' in df.columns and 'Campaigns' in df.columns:
+                st.write(f"### 🎯 Campaigns in {selected_li}")
+                campaign_breakdown = ro_data[ro_data['Line Item'] == selected_li].groupby('Campaigns').agg({
+                    'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                    'Requests': 'sum' if 'Requests' in df.columns else 'count',
+                    'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                    'CTR%': 'mean' if 'CTR%' in df.columns else 'count',
+                    'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count'
+                }).reset_index().sort_values('Impressions', ascending=False)
+                
+                if 'Schedule Impression' in df.columns:
+                    campaign_breakdown['Delivery %'] = (campaign_breakdown['Impressions'] / campaign_breakdown['Schedule Impression'].replace(0, 1) * 100).round(2)
+                    campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled', 'Delivery %']
+                else:
+                    campaign_breakdown.columns = ['Campaign', 'Impressions', 'Requests', 'Revenue (₹)', 'Avg CTR%', 'Scheduled']
+                
+                campaign_breakdown['Revenue (₹)'] = campaign_breakdown['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                campaign_breakdown['Avg CTR%'] = campaign_breakdown['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
+                if 'Delivery %' in campaign_breakdown.columns:
+                    campaign_breakdown['Delivery %'] = campaign_breakdown['Delivery %'].apply(lambda x: f"{x:.1f}%")
+                
+                st.dataframe(campaign_breakdown, use_container_width=True)
+            elif 'Line Item' in df.columns and 'Campaigns' in df.columns:
+                st.write("### 🎯 Select a Line Item to see Campaign Details")
+                # Show all campaigns under RO grouped by Line Item
+                all_campaigns = ro_data.groupby(['Line Item', 'Campaigns']).agg({
+                    'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                    'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                    'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
+                }).reset_index().sort_values(['Line Item', 'Impressions'], ascending=[True, False])
+                
+                all_campaigns.columns = ['Line Item', 'Campaign', 'Impressions', 'Revenue (₹)', 'Avg CTR%']
+                all_campaigns['Revenue (₹)'] = all_campaigns['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                all_campaigns['Avg CTR%'] = all_campaigns['Avg CTR%'].apply(lambda x: f"{x:.2f}%")
+                
+                st.dataframe(all_campaigns, use_container_width=True)
 
 with tab2:
     st.subheader("📊 Performance Metrics")
@@ -705,14 +714,15 @@ with tab5:
             st.markdown("---")
             
             # Pie charts for each campaign's publisher distribution
-            st.write("### Publisher Distribution per Campaign")
-            unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
-            for campaign in unique_campaigns_list:
-                campaign_pub_data = campaign_publisher_pct[campaign_publisher_pct['Campaigns'] == campaign]
-                if len(campaign_pub_data) > 0:
-                    fig_pie = px.pie(campaign_pub_data, values='Impressions', names='Publisher',
-                                    title=f"{campaign} - Publisher Distribution")
-                    st.plotly_chart(fig_pie, use_container_width=True)
+            if 'Campaigns' in filtered_df.columns and 'Publisher' in filtered_df.columns:
+                st.write("### Publisher Distribution per Campaign")
+                unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
+                for campaign in unique_campaigns_list:
+                    campaign_pub_data = campaign_publisher_pct[campaign_publisher_pct['Campaigns'] == campaign]
+                    if len(campaign_pub_data) > 0:
+                        fig_pie = px.pie(campaign_pub_data, values='Impressions', names='Publisher',
+                                        title=f"{campaign} - Publisher Distribution")
+                        st.plotly_chart(fig_pie, use_container_width=True)
             
             st.markdown("---")
             
@@ -749,14 +759,17 @@ with tab6:
     
     st.write(f"Showing {len(filtered_df)} records out of {len(df)} total")
     
-    # Show summary stats
+    # Show summary stats - only for columns that exist
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.write(f"**Unique Campaigns:** {filtered_df['Campaigns'].nunique()}")
+        if 'Campaigns' in filtered_df.columns:
+            st.write(f"**Unique Campaigns:** {filtered_df['Campaigns'].nunique()}")
     with col2:
-        st.write(f"**Unique Release Orders:** {filtered_df['Release Order'].nunique()}")
+        if 'Release Order' in filtered_df.columns:
+            st.write(f"**Unique Release Orders:** {filtered_df['Release Order'].nunique()}")
     with col3:
-        st.write(f"**Unique Line Items:** {filtered_df['Line Item'].nunique()}")
+        if 'Line Item' in filtered_df.columns:
+            st.write(f"**Unique Line Items:** {filtered_df['Line Item'].nunique()}")
     
     st.dataframe(filtered_df, use_container_width=True)
     
