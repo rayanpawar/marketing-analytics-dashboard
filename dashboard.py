@@ -285,6 +285,10 @@ st.sidebar.markdown("---")
 st.sidebar.write("🔎 **Search Campaigns**")
 campaign_search = st.sidebar.text_input("Search by campaign name", placeholder="e.g., Brand, Promo...")
 
+# Search Bar for Publishers
+st.sidebar.write("🔎 **Search Publishers**")
+publisher_search = st.sidebar.text_input("Search by publisher name", placeholder="e.g., Google, Facebook...")
+
 # Apply filters
 filtered_df = df.copy()
 
@@ -297,7 +301,12 @@ for filter_name, filter_value in selected_filters.items():
 # Apply campaign search filter
 if campaign_search and 'Campaigns' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Campaigns'].str.contains(campaign_search, case=False, na=False)]
-    st.sidebar.success(f"✅ Found {len(filtered_df)} records matching '{campaign_search}'")
+    st.sidebar.success(f"✅ Found {len(filtered_df)} records matching campaign '{campaign_search}'")
+
+# Apply publisher search filter
+if publisher_search and 'Publisher' in filtered_df.columns:
+    filtered_df = filtered_df[filtered_df['Publisher'].str.contains(publisher_search, case=False, na=False)]
+    st.sidebar.success(f"✅ Found {len(filtered_df)} records matching publisher '{publisher_search}'")
 
 # Tab navigation
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
