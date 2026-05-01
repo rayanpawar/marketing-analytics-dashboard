@@ -289,6 +289,52 @@ campaign_search = st.sidebar.text_input("Search by campaign name", placeholder="
 st.sidebar.write("🔎 **Search Publishers**")
 publisher_search = st.sidebar.text_input("Search by publisher name", placeholder="e.g., Google, Facebook...")
 
+# Date Range Filters
+st.sidebar.markdown("---")
+st.sidebar.write("📅 **Date Range Filter**")
+
+# Find date columns in the dataframe
+available_date_columns = [col for col in st.session_state.date_columns if col in df.columns]
+
+if available_date_columns:
+    # Get the first date column as primary filter
+    primary_date_column = available_date_columns[0]
+    
+    # Convert to datetime if not already
+    if df[primary_date_column].dtype != 'datetime64[ns]':
+        df[primary_date_column] = pd.to_datetime(df[primary_date_column], errors='coerce')
+    
+    # Get min and max dates
+    min_date = df[primary_date_column].min()
+    max_date = df[primary_date_column].max()
+    
+    if pd.notna(min_date) and pd.notna(max_date):
+        # Create date range filter
+        date_range = st.sidebar.date_input(
+            f"Select date range ({primary_date_column})",
+            value=(min_date.date(), max_date.date()),
+            min_value=min_date.date(),
+            max_value=max_date.date(),
+            key="date_range_filter"
+        )
+        
+        # Handle single date selection
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            start_date, end_date = date_range
+            st.session_state.date_start = start_date
+            st.session_state.date_end = end_date
+        else:
+            st.session_state.date_start = date_range
+            st.session_state.date_end = date_range
+    else:
+        st.sidebar.warning("No valid dates found in data")
+        st.session_state.date_start = None
+        st.session_state.date_end = None
+else:
+    st.sidebar.info("No date columns configured")
+    st.session_state.date_start = None
+    st.session_state.date_end = None
+
 # Apply filters
 filtered_df = df.copy()
 
@@ -307,6 +353,16 @@ if campaign_search and 'Campaigns' in filtered_df.columns:
 if publisher_search and 'Publisher' in filtered_df.columns:
     filtered_df = filtered_df[filtered_df['Publisher'].str.contains(publisher_search, case=False, na=False)]
     st.sidebar.success(f"✅ Found {len(filtered_df)} records matching publisher '{publisher_search}'")
+
+# Apply date range filter
+if st.session_state.date_start and st.session_state.date_end:
+    primary_date_column = [col for col in st.session_state.date_columns if col in df.columns][0] if [col for col in st.session_state.date_columns if col in df.columns] else None
+    if primary_date_column:
+        filtered_df = filtered_df[
+            (filtered_df[primary_date_column].dt.date >= st.session_state.date_start) &
+            (filtered_df[primary_date_column].dt.date <= st.session_state.date_end)
+        ]
+        st.sidebar.success(f"✅ Filtered to {len(filtered_df)} records between {st.session_state.date_start} and {st.session_state.date_end}")
 
 # Tab navigation
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
