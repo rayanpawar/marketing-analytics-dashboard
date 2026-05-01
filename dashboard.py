@@ -447,7 +447,9 @@ with tab3:
         }
         
         # Add Release Order ID if it exists in the dataframe
-        if 'Release Order ID' in filtered_df.columns:
+        if 'Release Order_id' in filtered_df.columns:
+            agg_dict['Release Order_id'] = 'first'
+        elif 'Release Order ID' in filtered_df.columns:
             agg_dict['Release Order ID'] = 'first'
         elif 'RO ID' in filtered_df.columns:
             agg_dict['RO ID'] = 'first'
@@ -455,11 +457,14 @@ with tab3:
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
         
         release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
-                                   (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
-                                    (['RO ID'] if 'RO ID' in filtered_df.columns else []))
+                                   (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
+                                    (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
+                                    (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
-        if 'Release Order ID' in release_order_df.columns:
+        if 'Release Order_id' in release_order_df.columns:
+            release_order_df = release_order_df.sort_values('Release Order_id', ascending=True)
+        elif 'Release Order ID' in release_order_df.columns:
             release_order_df = release_order_df.sort_values('Release Order ID', ascending=True)
         elif 'RO ID' in release_order_df.columns:
             release_order_df = release_order_df.sort_values('RO ID', ascending=True)
@@ -488,8 +493,9 @@ with tab3:
         st.write("### 📋 RO-wise Budget & Revenue Details")
         
         # Determine which RO ID column to use
-        ro_id_column = 'Release Order ID' if 'Release Order ID' in release_order_df.columns else \
-                       ('RO ID' if 'RO ID' in release_order_df.columns else None)
+        ro_id_column = 'Release Order_id' if 'Release Order_id' in release_order_df.columns else \
+                       ('Release Order ID' if 'Release Order ID' in release_order_df.columns else \
+                       ('RO ID' if 'RO ID' in release_order_df.columns else None))
         
         # Create display table with RO ID right after Release Order
         if ro_id_column:
