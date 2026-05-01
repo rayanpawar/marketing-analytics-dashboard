@@ -365,7 +365,7 @@ if st.session_state.date_start and st.session_state.date_end:
         st.sidebar.success(f"✅ Filtered to {len(filtered_df)} records between {st.session_state.date_start} and {st.session_state.date_end}")
 
 # Tab navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Revenue Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
 
 with tab1:
     if 'Release Order' not in df.columns:
@@ -571,54 +571,8 @@ with tab3:
         st.dataframe(display_ro, use_container_width=True)
         
         st.markdown("---")
-        st.write("### 📊 Publisher Distribution by Release Order (Pie Chart)")
-        
-        # Pie chart for publisher distribution
-        if 'Publisher' in release_order_df.columns:
-            publisher_ro_dist = filtered_df.groupby(['Release Order', 'Publisher']).size().reset_index(name='Count')
-            fig_pie = px.pie(publisher_ro_dist, values='Count', names='Release Order',
-                            title="Release Orders by Publisher Distribution", hover_data=['Publisher'])
-            st.plotly_chart(fig_pie, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # Visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Budget vs Revenue comparison
-            fig = go.Figure()
-            fig.add_trace(go.Bar(name='Budget', x=release_order_df['Release Order'], y=release_order_df['Total Budget'], marker_color='lightcoral'))
-            fig.add_trace(go.Bar(name='Revenue', x=release_order_df['Release Order'], y=release_order_df['Total Revenue'], marker_color='lightgreen'))
-            fig.update_layout(title='RO Budget vs Revenue', barmode='group', height=400)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # Budget Utilization %
-            fig2 = px.bar(release_order_df, x='Release Order', y='Budget Utilization %', 
-                         title="RO Budget Utilization %", color='Budget Utilization %',
-                         color_continuous_scale='RdYlGn')
-            st.plotly_chart(fig2, use_container_width=True)
-        
-        st.markdown("---")
-        st.write("### 💰 Overall Budget Summary")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            total_budget = release_order_df['Total Budget'].sum()
-            st.metric("🎯 Total Budget Allocated", f"₹{total_budget:,.0f}")
-        with col2:
-            total_revenue = release_order_df['Total Revenue'].sum()
-            st.metric("💵 Total Revenue Generated", f"₹{total_revenue:,.0f}")
-        with col3:
-            total_remaining = (release_order_df['Total Budget'] - release_order_df['Total Revenue']).sum()
-            st.metric("📌 Total Budget Remaining", f"₹{total_remaining:,.0f}")
-        with col4:
-            overall_utilization = (total_revenue / total_budget * 100) if total_budget > 0 else 0
-            st.metric("📊 Overall Budget Utilization", f"{overall_utilization:.2f}%")
         
         # Check for RO Budget Loss Alerts
-        st.markdown("---")
         st.write("### 🚨 Budget Status Alerts")
         
         # Alert 1: Revenue exceeded budget (overspend)
@@ -682,6 +636,57 @@ with tab3:
             file_name="ro_budget_report.csv",
             mime="text/csv"
         )
+        
+        st.markdown("---")
+        st.write("### 📊 Visualizations")
+        st.markdown("---")
+        
+        # Summary metrics
+        st.write("### 💰 Overall Budget Summary")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            total_budget = release_order_df['Total Budget'].sum()
+            st.metric("🎯 Total Budget Allocated", f"₹{total_budget:,.0f}")
+        with col2:
+            total_revenue = release_order_df['Total Revenue'].sum()
+            st.metric("💵 Total Revenue Generated", f"₹{total_revenue:,.0f}")
+        with col3:
+            total_remaining = (release_order_df['Total Budget'] - release_order_df['Total Revenue']).sum()
+            st.metric("📌 Total Budget Remaining", f"₹{total_remaining:,.0f}")
+        with col4:
+            overall_utilization = (total_revenue / total_budget * 100) if total_budget > 0 else 0
+            st.metric("📊 Overall Budget Utilization", f"{overall_utilization:.2f}%")
+        
+        st.markdown("---")
+        
+        # Pie chart for publisher distribution
+        if 'Publisher' in release_order_df.columns:
+            st.write("### 📊 Publisher Distribution by Release Order")
+            publisher_ro_dist = filtered_df.groupby(['Release Order', 'Publisher']).size().reset_index(name='Count')
+            fig_pie = px.pie(publisher_ro_dist, values='Count', names='Release Order',
+                            title="Release Orders by Publisher Distribution", hover_data=['Publisher'])
+            st.plotly_chart(fig_pie, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Budget vs Revenue comparison and Budget Utilization
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Budget vs Revenue comparison
+            fig = go.Figure()
+            fig.add_trace(go.Bar(name='Budget', x=release_order_df['Release Order'], y=release_order_df['Total Budget'], marker_color='lightcoral'))
+            fig.add_trace(go.Bar(name='Revenue', x=release_order_df['Release Order'], y=release_order_df['Total Revenue'], marker_color='lightgreen'))
+            fig.update_layout(title='RO Budget vs Revenue', barmode='group', height=400)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Budget Utilization %
+            fig2 = px.bar(release_order_df, x='Release Order', y='Budget Utilization %', 
+                         title="RO Budget Utilization %", color='Budget Utilization %',
+                         color_continuous_scale='RdYlGn')
+            st.plotly_chart(fig2, use_container_width=True)
     except Exception as e:
         st.error(f"Error generating Release Order Report: {str(e)}")
 
@@ -754,28 +759,6 @@ with tab5:
             with col3:
                 st.metric("Avg Delivery %", f"{daily_data['Delivery %'].mean():.1f}%")
             
-            # Daily impressions trend by campaign
-            fig = px.line(daily_data, x='Date', y='Impressions', color='Campaigns',
-                         title="Daily Impressions Consumption by Campaign", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Delivery percentage trend
-            fig2 = px.line(daily_data, x='Date', y='Delivery %', color='Campaigns',
-                          title="Daily Delivery % by Campaign", markers=True)
-            fig2.update_yaxes(range=[0, 105])
-            st.plotly_chart(fig2, use_container_width=True)
-            
-            st.markdown("---")
-            st.write("## 💰 Day-wise Revenue & Impressions Consumption")
-            
-            # Day-wise summary (overall, not by campaign)
-            daily_summary = daily_campaign_data.groupby('Date').agg({
-                'Impressions': 'sum',
-                'Revenue (INR)': 'sum',
-                'Requests': 'sum',
-                'CTR%': 'mean'
-            }).reset_index().sort_values('Date')
-            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Revenue", f"₹{daily_summary['Revenue (INR)'].sum():,.0f}")
@@ -785,6 +768,10 @@ with tab5:
                 st.metric("Peak Daily Revenue", f"₹{daily_summary['Revenue (INR)'].max():,.0f}")
             with col4:
                 st.metric("Total Days", len(daily_summary))
+            
+            st.markdown("---")
+            st.write("## 📊 Tables")
+            st.markdown("---")
             
             # Day-wise breakdown in column format
             st.write("### 📅 Day-wise Breakdown")
@@ -799,29 +786,7 @@ with tab5:
             display_daywise = day_wise_df[['Day', 'Date', 'Impressions', 'Revenue (₹)', 'Requests', 'CTR%']]
             st.dataframe(display_daywise, use_container_width=True)
             
-            # Day-wise revenue trend
-            fig3 = px.line(daily_summary, x='Date', y='Revenue (INR)',
-                          title="Daily Revenue Consumption Trend", markers=True, 
-                          labels={'Revenue (INR)': 'Revenue (₹)', 'Date': 'Date'})
-            fig3.update_traces(line=dict(color='#1f77b4', width=3))
-            st.plotly_chart(fig3, use_container_width=True)
-            
-            # Combined Revenue & Impressions chart
-            fig4 = go.Figure()
-            fig4.add_trace(go.Bar(x=daily_summary['Date'], y=daily_summary['Impressions'],
-                                 name='Impressions', marker_color='lightblue', yaxis='y'))
-            fig4.add_trace(go.Scatter(x=daily_summary['Date'], y=daily_summary['Revenue (INR)'],
-                                     name='Revenue (₹)', mode='lines+markers', 
-                                     line=dict(color='red', width=3), yaxis='y2'))
-            fig4.update_layout(
-                title="Daily Impressions vs Revenue",
-                xaxis=dict(title='Date'),
-                yaxis=dict(title='Impressions', side='left'),
-                yaxis2=dict(title='Revenue (₹)', overlaying='y', side='right'),
-                hovermode='x unified',
-                height=500
-            )
-            st.plotly_chart(fig4, use_container_width=True)
+            st.markdown("---")
             
             # Detailed day-wise table
             st.write("### Detailed Day-wise Consumption Summary")
@@ -925,6 +890,7 @@ with tab5:
             campaign_publisher = filtered_df.groupby(['Campaigns', 'Publisher'])['Impressions'].sum().reset_index()
             campaign_publisher_pivot = campaign_publisher.pivot(index='Campaigns', columns='Publisher', values='Impressions').fillna(0).astype(int)
             
+            st.write("### Campaign-Publisher Impressions")
             st.dataframe(campaign_publisher_pivot, use_container_width=True)
             
             # Download campaign-publisher breakdown
@@ -958,11 +924,6 @@ with tab5:
                 mime="text/csv"
             )
             
-            # Chart: Publisher distribution by campaign
-            fig_pub = px.bar(campaign_publisher_pct, x='Campaigns', y='Impressions', color='Publisher',
-                            title="Campaign Impressions by Publisher", barmode='stack')
-            st.plotly_chart(fig_pub, use_container_width=True)
-            
             st.markdown("---")
             st.write("### 📋 Publisher Share % by Campaign (Column Format)")
             
@@ -982,19 +943,6 @@ with tab5:
                 file_name="publisher_share_pivot.csv",
                 mime="text/csv"
             )
-            
-            st.markdown("---")
-            
-            # Pie charts for each campaign's publisher distribution
-            if 'Campaigns' in filtered_df.columns and 'Publisher' in filtered_df.columns:
-                st.write("### Publisher Distribution per Campaign")
-                unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
-                for campaign in unique_campaigns_list:
-                    campaign_pub_data = campaign_publisher_pct[campaign_publisher_pct['Campaigns'] == campaign]
-                    if len(campaign_pub_data) > 0:
-                        fig_pie = px.pie(campaign_pub_data, values='Impressions', names='Publisher',
-                                        title=f"{campaign} - Publisher Distribution")
-                        st.plotly_chart(fig_pie, use_container_width=True)
             
             st.markdown("---")
             
@@ -1023,11 +971,70 @@ with tab5:
                         st.dataframe(display_cols, use_container_width=True)
             
             st.markdown("---")
+            st.write("## 📈 Visualizations")
+            st.markdown("---")
+            
+            # Daily impressions trend by campaign
+            fig = px.line(daily_data, x='Date', y='Impressions', color='Campaigns',
+                         title="Daily Impressions Consumption by Campaign", markers=True)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Delivery percentage trend
+            fig2 = px.line(daily_data, x='Date', y='Delivery %', color='Campaigns',
+                          title="Daily Delivery % by Campaign", markers=True)
+            fig2.update_yaxes(range=[0, 105])
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            # Day-wise revenue trend
+            fig3 = px.line(daily_summary, x='Date', y='Revenue (INR)',
+                          title="Daily Revenue Consumption Trend", markers=True, 
+                          labels={'Revenue (INR)': 'Revenue (₹)', 'Date': 'Date'})
+            fig3.update_traces(line=dict(color='#1f77b4', width=3))
+            st.plotly_chart(fig3, use_container_width=True)
+            
+            # Combined Revenue & Impressions chart
+            fig4 = go.Figure()
+            fig4.add_trace(go.Bar(x=daily_summary['Date'], y=daily_summary['Impressions'],
+                                 name='Impressions', marker_color='lightblue', yaxis='y'))
+            fig4.add_trace(go.Scatter(x=daily_summary['Date'], y=daily_summary['Revenue (INR)'],
+                                     name='Revenue (₹)', mode='lines+markers', 
+                                     line=dict(color='red', width=3), yaxis='y2'))
+            fig4.update_layout(
+                title="Daily Impressions vs Revenue",
+                xaxis=dict(title='Date'),
+                yaxis=dict(title='Impressions', side='left'),
+                yaxis2=dict(title='Revenue (₹)', overlaying='y', side='right'),
+                hovermode='x unified',
+                height=500
+            )
+            st.plotly_chart(fig4, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Chart: Publisher distribution by campaign
+            fig_pub = px.bar(campaign_publisher_pct, x='Campaigns', y='Impressions', color='Publisher',
+                            title="Campaign Impressions by Publisher", barmode='stack')
+            st.plotly_chart(fig_pub, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Pie charts for each campaign's publisher distribution
+            if 'Campaigns' in filtered_df.columns and 'Publisher' in filtered_df.columns:
+                st.write("### Publisher Distribution per Campaign")
+                unique_campaigns_list = sorted(filtered_df['Campaigns'].unique())
+                for campaign in unique_campaigns_list:
+                    campaign_pub_data = campaign_publisher_pct[campaign_publisher_pct['Campaigns'] == campaign]
+                    if len(campaign_pub_data) > 0:
+                        fig_pie = px.pie(campaign_pub_data, values='Impressions', names='Publisher',
+                                        title=f"{campaign} - Publisher Distribution")
+                        st.plotly_chart(fig_pie, use_container_width=True)
+            
+            st.markdown("---")
     except Exception as e:
         st.error(f"Error generating Campaign Report: {str(e)}")
 
-# TAB 6: RO BOOKING VS CONSUMPTION
-with tab6:
+# TAB 5: RO BOOKING VS CONSUMPTION
+with tab5:
     st.subheader("📊 RO Booking vs Consumption - Impressions & Revenue")
     
     if 'Release Order' not in df.columns:
@@ -1091,8 +1098,8 @@ with tab6:
         except Exception as e:
             st.error(f"Error generating RO Booking Report: {str(e)}")
 
-# TAB 7: PUBLISHER CONSUMPTION
-with tab7:
+# TAB 6: PUBLISHER CONSUMPTION
+with tab6:
     st.subheader("📊 Publisher-wise Campaign Consumption")
     
     if 'Publisher' not in df.columns or 'Campaigns' not in df.columns:
@@ -1109,15 +1116,6 @@ with tab7:
             
             if 'Schedule Impression' in df.columns:
                 publisher_consumption['Consumption %'] = (publisher_consumption['Impressions'] / publisher_consumption['Schedule Impression'].replace(0, 1) * 100).round(2)
-            
-            # Pie chart for overall publisher distribution
-            st.write("### 📊 Overall Publisher Distribution (Pie Chart)")
-            publisher_totals = filtered_df.groupby('Publisher')['Impressions'].sum().reset_index()
-            fig_pie_pub = px.pie(publisher_totals, values='Impressions', names='Publisher',
-                                title="Overall Impressions Share by Publisher")
-            st.plotly_chart(fig_pie_pub, use_container_width=True)
-            
-            st.markdown("---")
             
             # Display by Publisher
             publishers = sorted(filtered_df['Publisher'].unique())
@@ -1154,15 +1152,28 @@ with tab7:
                     
                     st.dataframe(display_pub, use_container_width=True)
                     
+                    st.markdown("---")
+                    
                     # Chart
                     fig = px.bar(pub_data, x='Campaigns', y=['Schedule Impression', 'Impressions'],
                                 title=f"{publisher} - Campaign Booking vs Consumption", barmode='group')
                     st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown("---")
+            st.write("## 📈 Visualizations")
+            st.markdown("---")
+            
+            # Pie chart for overall publisher distribution
+            st.write("### 📊 Overall Publisher Distribution (Pie Chart)")
+            publisher_totals = filtered_df.groupby('Publisher')['Impressions'].sum().reset_index()
+            fig_pie_pub = px.pie(publisher_totals, values='Impressions', names='Publisher',
+                                title="Overall Impressions Share by Publisher")
+            st.plotly_chart(fig_pie_pub, use_container_width=True)
         except Exception as e:
             st.error(f"Error generating Publisher Report: {str(e)}")
 
-# TAB 8: ALERTS & THRESHOLDS
-with tab8:
+# TAB 7: ALERTS & THRESHOLDS
+with tab7:
     st.subheader("🚨 Performance Alerts - Threshold Monitoring")
     
     try:
@@ -1398,8 +1409,8 @@ with tab8:
     except Exception as e:
         st.error(f"Error generating Alerts: {str(e)}")
 
-# TAB 9: RAW DATA
-with tab9:
+# TAB 8: RAW DATA
+with tab8:
     st.subheader("📊 Raw Data Overview")
     
     st.write(f"Showing {len(filtered_df)} records out of {len(df)} total")
