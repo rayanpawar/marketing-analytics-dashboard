@@ -472,13 +472,13 @@ with tab3:
         st.markdown("---")
         st.write("### 📋 RO-wise Budget & Revenue Details")
         
-        # Create display table with reordered columns: RO, Budget, Revenue, Utilization, Remaining
-        display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining', 'Total Impressions', 'CPM']].copy()
-        display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Utilization %', 'Budget Remaining (₹)', 'Impressions', 'CPM']
+        # Create display table with reordered columns: RO, Budget, Revenue, Remaining, Utilization
+        display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
+        display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-        display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%")
         display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%")
         display_ro['Impressions'] = display_ro['Impressions'].astype(int)
         display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
         
@@ -548,12 +548,12 @@ with tab3:
             st.error(f"🔴 {len(overspend_ros)} Release Order(s) in LOSS - Revenue exceeded budget!")
             st.write("**Overspend Alert:** Revenue is more than allocated budget")
             
-            overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining']].copy()
-            overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Utilization %', 'Overspend (₹)']
+            overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %']].copy()
+            overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Overspend (₹)', 'Utilization %']
             overspend_display['Budget (₹)'] = overspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             overspend_display['Revenue (₹)'] = overspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            overspend_display['Utilization %'] = overspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             overspend_display['Overspend (₹)'] = overspend_display['Overspend (₹)'].apply(lambda x: f"₹{abs(x):,.0f}")
+            overspend_display['Utilization %'] = overspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             
             st.dataframe(overspend_display, use_container_width=True)
             st.markdown("---")
@@ -563,12 +563,12 @@ with tab3:
             st.warning(f"🟡 {len(underspend_ros)} Release Order(s) - Revenue below budget (underspend)")
             st.write("**Underspend Alert:** Revenue is less than allocated budget")
             
-            underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Utilization %', 'Budget Remaining']].copy()
-            underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Utilization %', 'Remaining (₹)']
+            underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %']].copy()
+            underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Remaining (₹)', 'Utilization %']
             underspend_display['Budget (₹)'] = underspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             underspend_display['Revenue (₹)'] = underspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-            underspend_display['Utilization %'] = underspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             underspend_display['Remaining (₹)'] = underspend_display['Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            underspend_display['Utilization %'] = underspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             
             st.dataframe(underspend_display, use_container_width=True)
             st.markdown("---")
