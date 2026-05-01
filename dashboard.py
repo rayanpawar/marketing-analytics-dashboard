@@ -290,7 +290,7 @@ for filter_name, filter_value in selected_filters.items():
         filtered_df = filtered_df[filtered_df[filter_name] == filter_value]
 
 # Tab navigation
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "Raw Data"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Hierarchical Drill-down", "Overview", "Release Order Report", "Line Item Report", "Campaign Report", "RO Booking vs Consumption", "Publisher Consumption", "Alerts", "Raw Data"])
 
 with tab1:
     if 'Release Order' not in df.columns:
@@ -754,7 +754,236 @@ with tab5:
     except Exception as e:
         st.error(f"Error generating Campaign Report: {str(e)}")
 
+# TAB 6: RO BOOKING VS CONSUMPTION
 with tab6:
+    st.subheader("📊 RO Booking vs Consumption - Impressions & Revenue")
+    
+    if 'Release Order' not in df.columns:
+        st.warning("⚠️ This tab requires 'Release Order' column")
+    else:
+        try:
+            # Calculate RO level booking vs consumption
+            ro_booking = filtered_df.groupby('Release Order').agg({
+                'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count',
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count'
+            }).reset_index()
+            
+            if 'Schedule Impression' in df.columns and 'Impressions' in df.columns:
+                ro_booking['Impressions Consumed'] = ro_booking['Impressions']
+                ro_booking['Impressions Booked'] = ro_booking['Schedule Impression']
+                ro_booking['Consumption %'] = (ro_booking['Impressions'] / ro_booking['Schedule Impression'].replace(0, 1) * 100).round(2)
+                ro_booking['Consumption %'] = ro_booking['Consumption %'].clip(upper=100)
+                
+                # Display metrics
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Booked Impressions", f"{int(ro_booking['Schedule Impression'].sum()):,}")
+                with col2:
+                    st.metric("Total Consumed Impressions", f"{int(ro_booking['Impressions'].sum()):,}")
+                with col3:
+                    avg_consumption = ro_booking['Consumption %'].mean()
+                    st.metric("Avg Consumption %", f"{avg_consumption:.1f}%")
+                with col4:
+                    if 'Revenue (INR)' in ro_booking.columns:
+                        st.metric("Total Revenue", f"₹{ro_booking['Revenue (INR)'].sum():,.0f}")
+                
+                st.markdown("---")
+                st.write("### 📈 RO-wise Booking vs Consumption")
+                
+                # Create display table
+                display_booking = ro_booking[['Release Order', 'Schedule Impression', 'Impressions', 'Consumption %', 'Revenue (INR)']].copy()
+                display_booking.columns = ['Release Order', 'Booked Impressions', 'Consumed Impressions', 'Consumption %', 'Revenue (₹)']
+                display_booking['Booked Impressions'] = display_booking['Booked Impressions'].astype(int)
+                display_booking['Consumed Impressions'] = display_booking['Consumed Impressions'].astype(int)
+                display_booking['Consumption %'] = display_booking['Consumption %'].apply(lambda x: f"{x:.2f}%")
+                display_booking['Revenue (₹)'] = display_booking['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                
+                st.dataframe(display_booking, use_container_width=True)
+                
+                # Visualization
+                fig = go.Figure()
+                fig.add_trace(go.Bar(name='Booked', x=ro_booking['Release Order'], y=ro_booking['Schedule Impression'], marker_color='lightblue'))
+                fig.add_trace(go.Bar(name='Consumed', x=ro_booking['Release Order'], y=ro_booking['Impressions'], marker_color='darkblue'))
+                fig.update_layout(title='RO Booking vs Consumption Impressions', barmode='group', height=500)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Download button
+                csv = display_booking.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download RO Booking Report",
+                    data=csv,
+                    file_name="ro_booking_consumption.csv",
+                    mime="text/csv"
+                )
+        except Exception as e:
+            st.error(f"Error generating RO Booking Report: {str(e)}")
+
+# TAB 7: PUBLISHER CONSUMPTION
+with tab7:
+    st.subheader("📊 Publisher-wise Campaign Consumption")
+    
+    if 'Publisher' not in df.columns or 'Campaigns' not in df.columns:
+        st.warning("⚠️ This tab requires 'Publisher' and 'Campaigns' columns")
+    else:
+        try:
+            # Publisher-wise consumption
+            publisher_consumption = filtered_df.groupby(['Publisher', 'Campaigns']).agg({
+                'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count',
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count',
+                'CTR%': 'mean' if 'CTR%' in df.columns else 'count'
+            }).reset_index()
+            
+            if 'Schedule Impression' in df.columns:
+                publisher_consumption['Consumption %'] = (publisher_consumption['Impressions'] / publisher_consumption['Schedule Impression'].replace(0, 1) * 100).round(2)
+            
+            # Display by Publisher
+            publishers = sorted(filtered_df['Publisher'].unique())
+            for publisher in publishers:
+                pub_data = publisher_consumption[publisher_consumption['Publisher'] == publisher]
+                
+                with st.expander(f"📢 {publisher} ({len(pub_data)} campaigns)"):
+                    # Metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric(f"{publisher} Total Consumed", f"{int(pub_data['Impressions'].sum()):,}")
+                    with col2:
+                        st.metric(f"{publisher} Total Booked", f"{int(pub_data['Schedule Impression'].sum()):,}")
+                    with col3:
+                        if 'Consumption %' in pub_data.columns:
+                            avg_cons = pub_data['Consumption %'].mean()
+                            st.metric(f"{publisher} Avg Consumption", f"{avg_cons:.1f}%")
+                    with col4:
+                        st.metric(f"{publisher} Revenue", f"₹{pub_data['Revenue (INR)'].sum():,.0f}")
+                    
+                    st.markdown("---")
+                    
+                    # Detailed table
+                    display_pub = pub_data[['Campaigns', 'Schedule Impression', 'Impressions', 'Consumption %', 'Revenue (INR)', 'CTR%']].copy() if 'Consumption %' in pub_data.columns else pub_data[['Campaigns', 'Schedule Impression', 'Impressions', 'Revenue (INR)', 'CTR%']].copy()
+                    if 'Consumption %' in pub_data.columns:
+                        display_pub.columns = ['Campaign', 'Booked', 'Consumed', 'Consumption %', 'Revenue', 'CTR%']
+                        display_pub['Consumption %'] = display_pub['Consumption %'].apply(lambda x: f"{x:.2f}%")
+                    else:
+                        display_pub.columns = ['Campaign', 'Booked', 'Consumed', 'Revenue', 'CTR%']
+                    display_pub['Booked'] = display_pub['Booked'].astype(int)
+                    display_pub['Consumed'] = display_pub['Consumed'].astype(int)
+                    display_pub['Revenue'] = display_pub['Revenue'].apply(lambda x: f"₹{x:,.0f}")
+                    display_pub['CTR%'] = display_pub['CTR%'].apply(lambda x: f"{x:.2f}%")
+                    
+                    st.dataframe(display_pub, use_container_width=True)
+                    
+                    # Chart
+                    fig = px.bar(pub_data, x='Campaigns', y=['Schedule Impression', 'Impressions'],
+                                title=f"{publisher} - Campaign Booking vs Consumption", barmode='group')
+                    st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error generating Publisher Report: {str(e)}")
+
+# TAB 8: ALERTS & THRESHOLDS
+with tab8:
+    st.subheader("🚨 Performance Alerts - Threshold Monitoring")
+    
+    try:
+        # Set threshold values
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            ctr_threshold = st.number_input("CTR% Threshold", min_value=0.0, max_value=100.0, value=2.0, step=0.1)
+        with col2:
+            ptr_threshold = st.number_input("PTR% Threshold (Publication to Request)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
+        with col3:
+            consumption_threshold = st.number_input("Consumption % Threshold", min_value=0.0, max_value=100.0, value=80.0, step=1.0)
+        
+        st.markdown("---")
+        
+        # Check campaign-level metrics
+        if 'Campaigns' in filtered_df.columns:
+            campaign_metrics = filtered_df.groupby('Campaigns').agg({
+                'CTR%': 'mean' if 'CTR%' in df.columns else 'count',
+                'Requests': 'sum' if 'Requests' in df.columns else 'count',
+                'Impressions': 'sum' if 'Impressions' in df.columns else 'count',
+                'Schedule Impression': 'first' if 'Schedule Impression' in df.columns else 'count'
+            }).reset_index()
+            
+            if 'Requests' in df.columns and 'Impressions' in df.columns:
+                campaign_metrics['PTR%'] = (campaign_metrics['Requests'] / campaign_metrics['Impressions'].replace(0, 1) * 100).round(2)
+            
+            if 'Schedule Impression' in df.columns:
+                campaign_metrics['Consumption %'] = (campaign_metrics['Impressions'] / campaign_metrics['Schedule Impression'].replace(0, 1) * 100).round(2)
+            
+            # Check alerts
+            alerts = []
+            
+            # CTR Alert
+            if 'CTR%' in campaign_metrics.columns:
+                low_ctr = campaign_metrics[campaign_metrics['CTR%'] < ctr_threshold]
+                if len(low_ctr) > 0:
+                    alerts.append(('low_ctr', low_ctr))
+            
+            # PTR Alert
+            if 'PTR%' in campaign_metrics.columns:
+                low_ptr = campaign_metrics[campaign_metrics['PTR%'] < ptr_threshold]
+                if len(low_ptr) > 0:
+                    alerts.append(('low_ptr', low_ptr))
+            
+            # Consumption Alert
+            if 'Consumption %' in campaign_metrics.columns:
+                low_consumption = campaign_metrics[campaign_metrics['Consumption %'] < consumption_threshold]
+                if len(low_consumption) > 0:
+                    alerts.append(('low_consumption', low_consumption))
+            
+            # Display alerts
+            if alerts:
+                st.write("### ⚠️ Campaigns Below Threshold")
+                
+                # CTR Alerts
+                low_ctr_data = next((x[1] for x in alerts if x[0] == 'low_ctr'), None)
+                if low_ctr_data is not None and len(low_ctr_data) > 0:
+                    st.error(f"🔴 {len(low_ctr_data)} campaign(s) have CTR% below {ctr_threshold}%")
+                    alert_display = low_ctr_data[['Campaigns', 'CTR%']].copy()
+                    alert_display.columns = ['Campaign', 'CTR%']
+                    alert_display['CTR%'] = alert_display['CTR%'].apply(lambda x: f"{x:.2f}%")
+                    st.dataframe(alert_display, use_container_width=True)
+                
+                # PTR Alerts
+                low_ptr_data = next((x[1] for x in alerts if x[0] == 'low_ptr'), None)
+                if low_ptr_data is not None and len(low_ptr_data) > 0:
+                    st.error(f"🔴 {len(low_ptr_data)} campaign(s) have PTR% below {ptr_threshold}%")
+                    alert_display = low_ptr_data[['Campaigns', 'PTR%']].copy()
+                    alert_display.columns = ['Campaign', 'PTR%']
+                    alert_display['PTR%'] = alert_display['PTR%'].apply(lambda x: f"{x:.2f}%")
+                    st.dataframe(alert_display, use_container_width=True)
+                
+                # Consumption Alerts
+                low_consumption_data = next((x[1] for x in alerts if x[0] == 'low_consumption'), None)
+                if low_consumption_data is not None and len(low_consumption_data) > 0:
+                    st.error(f"🔴 {len(low_consumption_data)} campaign(s) have Consumption% below {consumption_threshold}%")
+                    alert_display = low_consumption_data[['Campaigns', 'Consumption %']].copy()
+                    alert_display.columns = ['Campaign', 'Consumption %']
+                    alert_display['Consumption %'] = alert_display['Consumption %'].apply(lambda x: f"{x:.2f}%")
+                    st.dataframe(alert_display, use_container_width=True)
+                
+                st.markdown("---")
+            else:
+                st.success("✅ All campaigns are above threshold!")
+            
+            # Overall summary
+            st.write("### 📊 Campaign Performance Summary")
+            summary_display = campaign_metrics[['Campaigns', 'CTR%', 'PTR%', 'Consumption %']].copy() if 'PTR%' in campaign_metrics.columns and 'Consumption %' in campaign_metrics.columns else campaign_metrics[['Campaigns', 'CTR%']].copy()
+            summary_display['CTR%'] = summary_display['CTR%'].apply(lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else x)
+            if 'PTR%' in summary_display.columns:
+                summary_display['PTR%'] = summary_display['PTR%'].apply(lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else x)
+            if 'Consumption %' in summary_display.columns:
+                summary_display['Consumption %'] = summary_display['Consumption %'].apply(lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else x)
+            st.dataframe(summary_display, use_container_width=True)
+            
+        else:
+            st.warning("⚠️ This tab requires 'Campaigns' column")
+    except Exception as e:
+        st.error(f"Error generating Alerts: {str(e)}")
+
+# TAB 9: RAW DATA
+with tab9:
     st.subheader("📊 Raw Data Overview")
     
     st.write(f"Showing {len(filtered_df)} records out of {len(df)} total")
