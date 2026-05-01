@@ -518,6 +518,27 @@ with tab3:
             overall_utilization = (total_revenue / total_budget * 100) if total_budget > 0 else 0
             st.metric("📊 Overall Budget Utilization", f"{overall_utilization:.2f}%")
         
+        # Check for RO Budget Loss Alerts
+        st.markdown("---")
+        st.write("### 🚨 Budget Loss Alerts")
+        
+        loss_ros = release_order_df[release_order_df['Budget Remaining'] < 0]
+        
+        if len(loss_ros) > 0:
+            st.error(f"⚠️ {len(loss_ros)} Release Order(s) in LOSS - Revenue exceeded budget!")
+            
+            loss_display = loss_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining']].copy()
+            loss_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Loss (₹)']
+            loss_display['Budget (₹)'] = loss_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            loss_display['Revenue (₹)'] = loss_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            loss_display['Loss (₹)'] = loss_display['Loss (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            
+            st.dataframe(loss_display, use_container_width=True)
+        else:
+            st.success("✅ All Release Orders are within budget!")
+        
+        st.markdown("---")
+        
         # Download Report
         csv = display_ro.to_csv(index=False)
         st.download_button(
@@ -1036,6 +1057,35 @@ with tab8:
                     st.dataframe(alert_display, use_container_width=True)
                 
                 st.markdown("---")
+                
+                # Budget Loss Alerts for RO
+                if 'Release Order' in filtered_df.columns and 'Campaign Budget' in filtered_df.columns:
+                    st.write("### 💰 Budget Loss Alerts - Release Orders")
+                    
+                    ro_budget_status = filtered_df.groupby('Release Order').agg({
+                        'Campaign Budget': 'sum',
+                        'Revenue (INR)': 'sum' if 'Revenue (INR)' in df.columns else 'count'
+                    }).reset_index()
+                    
+                    ro_budget_status.columns = ['Release Order', 'Total Budget', 'Total Revenue']
+                    ro_budget_status['Budget Loss'] = ro_budget_status['Total Budget'] - ro_budget_status['Total Revenue']
+                    
+                    loss_ros = ro_budget_status[ro_budget_status['Budget Loss'] > 0]
+                    
+                    if len(loss_ros) > 0:
+                        st.error(f"🔴 {len(loss_ros)} Release Order(s) in LOSS - Revenue hasn't met budget!")
+                        
+                        loss_display = loss_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Loss']].copy()
+                        loss_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Loss Amount (₹)']
+                        loss_display['Budget (₹)'] = loss_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                        loss_display['Revenue (₹)'] = loss_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                        loss_display['Loss Amount (₹)'] = loss_display['Loss Amount (₹)'].apply(lambda x: f"₹{x:,.0f}")
+                        
+                        st.dataframe(loss_display, use_container_width=True)
+                    else:
+                        st.success("✅ All Release Orders have met or exceeded budget!")
+                    
+                    st.markdown("---")
             else:
                 st.success("✅ All campaigns are above threshold!")
             
