@@ -1033,8 +1033,8 @@ with tab5:
     except Exception as e:
         st.error(f"Error generating Campaign Report: {str(e)}")
 
-# TAB 5: RO BOOKING VS CONSUMPTION
-with tab5:
+# TAB 6: RO BOOKING VS CONSUMPTION
+with tab6:
     st.subheader("📊 RO Booking vs Consumption - Impressions & Revenue")
     
     if 'Release Order' not in df.columns:
@@ -1098,8 +1098,8 @@ with tab5:
         except Exception as e:
             st.error(f"Error generating RO Booking Report: {str(e)}")
 
-# TAB 6: PUBLISHER CONSUMPTION
-with tab6:
+# TAB 7: PUBLISHER CONSUMPTION
+with tab7:
     st.subheader("📊 Publisher-wise Campaign Consumption")
     
     if 'Publisher' not in df.columns or 'Campaigns' not in df.columns:
@@ -1172,8 +1172,8 @@ with tab6:
         except Exception as e:
             st.error(f"Error generating Publisher Report: {str(e)}")
 
-# TAB 7: ALERTS & THRESHOLDS
-with tab7:
+# TAB 8: ALERTS & THRESHOLDS
+with tab8:
     st.subheader("🚨 Performance Alerts - Threshold Monitoring")
     
     try:
@@ -1409,8 +1409,8 @@ with tab7:
     except Exception as e:
         st.error(f"Error generating Alerts: {str(e)}")
 
-# TAB 8: RAW DATA
-with tab8:
+# TAB 9: RAW DATA
+with tab9:
     st.subheader("📊 Raw Data Overview")
     
     st.write(f"Showing {len(filtered_df)} records out of {len(df)} total")
