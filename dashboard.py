@@ -1272,6 +1272,60 @@ with tab8:
                             st.dataframe(daily_budget_display, use_container_width=True)
                     
                     st.markdown("---")
+                    st.write("### 📊 Day-wise Alerts Pivot Format (Campaigns × Dates)")
+                    
+                    # Pivot table for day-wise CTR%
+                    if len(daily_low_ctr) > 0:
+                        st.write("#### 🔴 CTR% Below Threshold by Campaign & Date")
+                        ctr_pivot_data = daily_low_ctr[['Campaigns', 'Date', 'CTR%']].copy()
+                        ctr_pivot = ctr_pivot_data.pivot(index='Campaigns', columns='Date', values='CTR%').fillna('-')
+                        ctr_pivot_display = ctr_pivot.map(lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else x)
+                        st.dataframe(ctr_pivot_display, use_container_width=True)
+                        
+                        # Download CTR pivot
+                        csv = ctr_pivot.reset_index().to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download CTR% Alerts Pivot",
+                            data=csv,
+                            file_name="ctr_alerts_pivot.csv",
+                            mime="text/csv"
+                        )
+                        st.markdown("---")
+                    
+                    # Pivot table for day-wise Budget Remaining
+                    if 'Budget Remaining' in daily_campaign_alerts.columns and len(daily_underspend) > 0:
+                        st.write("#### 🟡 Budget Remaining by Campaign & Date")
+                        budget_pivot_data = daily_underspend[['Campaigns', 'Date', 'Budget Remaining']].copy()
+                        budget_pivot = budget_pivot_data.pivot(index='Campaigns', columns='Date', values='Budget Remaining').fillna(0)
+                        budget_pivot_display = budget_pivot.map(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) and x != 0 else ('-' if x == 0 else x))
+                        st.dataframe(budget_pivot_display, use_container_width=True)
+                        
+                        # Download Budget pivot
+                        csv = budget_pivot.reset_index().to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Budget Remaining Pivot",
+                            data=csv,
+                            file_name="budget_remaining_pivot.csv",
+                            mime="text/csv"
+                        )
+                        st.markdown("---")
+                    
+                    # Pivot table for day-wise Revenue
+                    if 'Revenue (INR)' in daily_campaign_alerts.columns:
+                        st.write("#### 💰 Daily Revenue by Campaign & Date")
+                        revenue_pivot_data = daily_campaign_alerts[['Campaigns', 'Date', 'Revenue (INR)']].copy()
+                        revenue_pivot = revenue_pivot_data.pivot(index='Campaigns', columns='Date', values='Revenue (INR)').fillna(0)
+                        revenue_pivot_display = revenue_pivot.map(lambda x: f"₹{x:,.0f}" if x > 0 else '-')
+                        st.dataframe(revenue_pivot_display, use_container_width=True)
+                        
+                        # Download Revenue pivot
+                        csv = revenue_pivot.reset_index().to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Revenue Pivot",
+                            data=csv,
+                            file_name="daily_revenue_pivot.csv",
+                            mime="text/csv"
+                        )
             
             # Overall summary
             st.write("### 📊 Campaign Performance Summary")
