@@ -708,7 +708,10 @@ with tab3:
         
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Total RO Value", f"₹{release_order_df['RoValue'].sum():,.0f}")
+            if 'RoValue' in release_order_df.columns:
+                st.metric("Total RO Value", f"₹{release_order_df['RoValue'].sum():,.0f}")
+            else:
+                st.metric("Total RO Value", "N/A")
         with col2:
             st.metric("Total Budget", f"₹{release_order_df['Total Budget'].sum():,.0f}")
         with col3:
@@ -727,14 +730,23 @@ with tab3:
                        ('RO ID' if 'RO ID' in release_order_df.columns else None))
         
         # Create display table with RO ID right after Release Order
-        if ro_id_column:
+        has_rovalue = 'RoValue' in release_order_df.columns
+        
+        if ro_id_column and has_rovalue:
             display_ro = release_order_df[['Release Order', ro_id_column, 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'RO ID', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-        else:
+            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        elif ro_id_column:
+            display_ro = release_order_df[['Release Order', ro_id_column, 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
+            display_ro.columns = ['Release Order', 'RO ID', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
+        elif has_rovalue:
             display_ro = release_order_df[['Release Order', 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
+            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        else:
+            display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
+            display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         
-        display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
