@@ -521,8 +521,8 @@ with tab3:
             'Campaigns': 'count',
             'Impressions': 'sum',
             'Requests': 'sum',
-            'Revenue (INR)': 'first',
-            'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
+            'Revenue (INR)': 'sum',
+            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',
             'Publisher': 'first' if 'Publisher' in df.columns else 'count'
         }
         
@@ -535,6 +535,15 @@ with tab3:
             agg_dict['RO ID'] = 'first'
         
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
+        
+        # Show debug info
+        with st.expander("🔍 Debug: Check RO aggregation"):
+            st.write("**Sample RO data before formatting:**")
+            debug_df = release_order_df[['Release Order', 'Total Impressions', 'Total Revenue', 'Total Budget']].head(3)
+            st.dataframe(debug_df)
+            st.write(f"Total ROs: {len(release_order_df)}")
+            st.write(f"Avg Revenue per RO: ₹{release_order_df['Total Revenue'].mean():,.0f}")
+            st.write(f"Total Revenue sum: ₹{release_order_df['Total Revenue'].sum():,.0f}")
         
         release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
                                    (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
