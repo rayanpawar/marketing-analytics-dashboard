@@ -518,11 +518,11 @@ with tab3:
     try:
         # Group by Release Order with Publisher info
         agg_dict = {
-            'Campaigns': 'count',
+            'Campaigns': 'nunique',
             'Impressions': 'sum',
             'Requests': 'sum',
             'Revenue (INR)': 'sum',
-            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',
+            'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
             'Publisher': 'first' if 'Publisher' in df.columns else 'count'
         }
         
