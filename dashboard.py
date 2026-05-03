@@ -702,6 +702,12 @@ with tab3:
         rename_map = {k: v for k, v in rename_map.items() if k in release_order_df.columns}
         release_order_df.rename(columns=rename_map, inplace=True)
         
+        # Ensure all numeric columns are actually numeric type
+        numeric_cols = ['Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'RoValue']
+        for col in numeric_cols:
+            if col in release_order_df.columns:
+                release_order_df[col] = pd.to_numeric(release_order_df[col], errors='coerce')
+        
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
             release_order_df = release_order_df.sort_values('Release Order_id', ascending=True)
