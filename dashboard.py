@@ -521,8 +521,8 @@ with tab3:
             'Campaigns': 'count',
             'Impressions': 'sum',
             'Requests': 'sum',
-            'Revenue (INR)': 'sum',
-            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',
+            'Revenue (INR)': 'first',
+            'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
             'Publisher': 'first' if 'Publisher' in df.columns else 'count'
         }
         
@@ -541,29 +541,6 @@ with tab3:
                                    (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
                                     (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
                                     (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
-        
-        # Show DETAILED debug info BEFORE formatting
-        with st.expander("🔍 **DEBUG - Revenue Column Analysis**", expanded=True):
-            st.warning("Check what revenue data we have:")
-            st.write(f"**Columns in data:** {filtered_df.columns.tolist()}")
-            st.write(f"**Revenue column exists:** {'Revenue (INR)' in filtered_df.columns}")
-            if 'Revenue (INR)' in filtered_df.columns:
-                st.write(f"**Revenue data type:** {filtered_df['Revenue (INR)'].dtype}")
-                st.write(f"**Revenue min/max:** {filtered_df['Revenue (INR)'].min()} to {filtered_df['Revenue (INR)'].max()}")
-                st.write(f"**Revenue sum (all rows):** ₹{filtered_df['Revenue (INR)'].sum():,}")
-                st.write("**First 10 revenue values:**")
-                st.write(filtered_df['Revenue (INR)'].head(10).tolist())
-            st.write("\n**RO aggregation result:**")
-            st.dataframe(release_order_df[['Release Order', 'Total Revenue', 'Total Budget']].head(5), use_container_width=True)
-        
-        # Show debug info
-        with st.expander("🔍 Debug: Check RO aggregation"):
-            st.write("**Sample RO data before formatting:**")
-            debug_df = release_order_df[['Release Order', 'Total Impressions', 'Total Revenue', 'Total Budget']].head(3)
-            st.dataframe(debug_df)
-            st.write(f"Total ROs: {len(release_order_df)}")
-            st.write(f"Avg Revenue per RO: ₹{release_order_df['Total Revenue'].mean():,.0f}")
-            st.write(f"Total Revenue sum: ₹{release_order_df['Total Revenue'].sum():,.0f}")
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
