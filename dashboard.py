@@ -683,10 +683,22 @@ with tab3:
         
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
         
-        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
-                                   (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
-                                    (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
-                                    (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
+        # Build column names dynamically based on what's actually in the result
+        col_names = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher']
+        
+        # Add RoValue if it exists
+        if 'RoValue' in release_order_df.columns:
+            col_names.append('RoValue')
+        
+        # Add Release Order ID if it exists
+        if 'Release Order_id' in release_order_df.columns:
+            col_names.append('Release Order_id')
+        elif 'Release Order ID' in release_order_df.columns:
+            col_names.append('Release Order ID')
+        elif 'RO ID' in release_order_df.columns:
+            col_names.append('RO ID')
+        
+        release_order_df.columns = col_names
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
