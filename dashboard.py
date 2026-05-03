@@ -685,30 +685,22 @@ with tab3:
         elif 'ReleaseOrderId' in filtered_df.columns and group_col != 'ReleaseOrderId':
             agg_dict['ReleaseOrderId'] = 'first'
         
-        release_order_df = filtered_df.groupby(group_col).agg(agg_dict).reset_index(drop=(group_col != 'Release Order'))
+        release_order_df = filtered_df.groupby(group_col).agg(agg_dict).reset_index()
         
-        # Build column names dynamically based on what's actually in the result
-        col_names = []
-        if group_col == 'ReleaseOrderId':
-            col_names.append('ReleaseOrderId')
+        # Rename columns to match what we expect
+        rename_map = {
+            'Campaigns': 'Campaigns',
+            'Impressions': 'Total Impressions',
+            'Requests': 'Total Requests', 
+            'Revenue (INR)': 'Total Revenue',
+            'Campaign Budget': 'Total Budget',
+            'Publisher': 'Publisher',
+            'RoValue': 'RoValue'
+        }
         
-        col_names.extend(['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'])
-        
-        # Add RoValue if it exists
-        if 'RoValue' in release_order_df.columns:
-            col_names.append('RoValue')
-        
-        # Add Release Order ID if it exists
-        if 'Release Order_id' in release_order_df.columns:
-            col_names.append('Release Order_id')
-        elif 'Release Order ID' in release_order_df.columns:
-            col_names.append('Release Order ID')
-        elif 'ReleaseOrderId' in release_order_df.columns and group_col != 'ReleaseOrderId':
-            col_names.append('ReleaseOrderId')
-        
-        # Only rename if column count matches
-        if len(col_names) == len(release_order_df.columns):
-            release_order_df.columns = col_names
+        # Only rename columns that exist
+        rename_map = {k: v for k, v in rename_map.items() if k in release_order_df.columns}
+        release_order_df.rename(columns=rename_map, inplace=True)
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
