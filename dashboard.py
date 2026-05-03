@@ -536,6 +536,12 @@ with tab3:
         
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
         
+        # Rename columns first
+        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
+                                   (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
+                                    (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
+                                    (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
+        
         # Show debug info
         with st.expander("🔍 Debug: Check RO aggregation"):
             st.write("**Sample RO data before formatting:**")
@@ -544,11 +550,6 @@ with tab3:
             st.write(f"Total ROs: {len(release_order_df)}")
             st.write(f"Avg Revenue per RO: ₹{release_order_df['Total Revenue'].mean():,.0f}")
             st.write(f"Total Revenue sum: ₹{release_order_df['Total Revenue'].sum():,.0f}")
-        
-        release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
-                                   (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
-                                    (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
-                                    (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
