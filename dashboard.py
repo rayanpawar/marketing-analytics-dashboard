@@ -521,8 +521,8 @@ with tab3:
             'Campaigns': 'count',
             'Impressions': 'sum',
             'Requests': 'sum',
-            'Revenue (INR)': 'first',
-            'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
+            'Revenue (INR)': 'sum',
+            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',
             'Publisher': 'first' if 'Publisher' in df.columns else 'count'
         }
         
@@ -536,7 +536,6 @@ with tab3:
         
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
         
-        # Rename columns first
         release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
                                    (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
                                     (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
@@ -586,9 +585,6 @@ with tab3:
             display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         
-        # Reset index to avoid display issues
-        display_ro = display_ro.reset_index(drop=True)
-        
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
@@ -596,7 +592,7 @@ with tab3:
         display_ro['Impressions'] = display_ro['Impressions'].astype(int)
         display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
         
-        st.dataframe(display_ro, use_container_width=True, hide_index=True)
+        st.dataframe(display_ro, use_container_width=True)
         
         st.markdown("---")
         
@@ -623,13 +619,12 @@ with tab3:
                 overspend_display = overspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %']].copy()
                 overspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Overspend (₹)', 'Utilization %']
             
-            overspend_display = overspend_display.reset_index(drop=True)
             overspend_display['Budget (₹)'] = overspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             overspend_display['Revenue (₹)'] = overspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
             overspend_display['Overspend (₹)'] = overspend_display['Overspend (₹)'].apply(lambda x: f"₹{abs(x):,.0f}")
             overspend_display['Utilization %'] = overspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             
-            st.dataframe(overspend_display, use_container_width=True, hide_index=True)
+            st.dataframe(overspend_display, use_container_width=True)
             st.markdown("---")
         
         if len(underspend_ros) > 0:
@@ -644,13 +639,12 @@ with tab3:
                 underspend_display = underspend_ros[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %']].copy()
                 underspend_display.columns = ['Release Order', 'Budget (₹)', 'Revenue (₹)', 'Remaining (₹)', 'Utilization %']
             
-            underspend_display = underspend_display.reset_index(drop=True)
             underspend_display['Budget (₹)'] = underspend_display['Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
             underspend_display['Revenue (₹)'] = underspend_display['Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
             underspend_display['Remaining (₹)'] = underspend_display['Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
             underspend_display['Utilization %'] = underspend_display['Utilization %'].apply(lambda x: f"{x:.2f}%")
             
-            st.dataframe(underspend_display, use_container_width=True, hide_index=True)
+            st.dataframe(underspend_display, use_container_width=True)
             st.markdown("---")
         
         if not alert_exists:
