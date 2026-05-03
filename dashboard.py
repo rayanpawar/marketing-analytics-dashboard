@@ -755,34 +755,63 @@ with tab3:
         # Create display table with RO ID right after Release Order
         has_rovalue = 'RoValue' in release_order_df.columns
         
-        if ro_id_column and has_rovalue:
-            display_ro = release_order_df[['Release Order', ro_id_column, 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'RO ID', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A")
-        elif ro_id_column:
-            display_ro = release_order_df[['Release Order', ro_id_column, 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'RO ID', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-        elif has_rovalue:
-            display_ro = release_order_df[['Release Order', 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A")
-        else:
-            display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
+        # Build column list dynamically based on what exists
+        base_cols = ['Release Order']
+        if ro_id_column:
+            base_cols.append(ro_id_column)
+        if has_rovalue:
+            base_cols.append('RoValue')
         
-        display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
-        display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
-        display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        base_cols.extend(['Total Budget', 'Total Revenue'])
         
-        # Handle RO Value formatting - skip NaN values
-        if 'RO Value (₹)' in display_ro.columns:
-            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(
-                lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A"
-            )
+        if 'Budget Remaining' in release_order_df.columns:
+            base_cols.append('Budget Remaining')
+        if 'Budget Utilization %' in release_order_df.columns:
+            base_cols.append('Budget Utilization %')
         
-        display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%")
-        display_ro['Impressions'] = display_ro['Impressions'].astype(int)
-        display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
+        base_cols.extend(['Total Impressions', 'CPM'])
+        
+        # Only select columns that exist
+        available_cols = [col for col in base_cols if col in release_order_df.columns]
+        display_ro = release_order_df[available_cols].copy()
+        
+        # Rename columns with proper formatting
+        rename_map = {
+            'Release Order': 'Release Order',
+            ro_id_column: 'RO ID' if ro_id_column else None,
+            'RoValue': 'RO Value (₹)',
+            'Total Budget': 'Total Budget (₹)',
+            'Total Revenue': 'Total Revenue (₹)',
+            'Budget Remaining': 'Budget Remaining (₹)',
+            'Budget Utilization %': 'Budget Utilization %',
+            'Total Impressions': 'Impressions',
+            'CPM': 'CPM'
+        }
+        rename_map = {k: v for k, v in rename_map.items() if k and k in display_ro.columns}
+        display_ro.rename(columns=rename_map, inplace=True)
+        
+        # Ensure all numeric columns are numeric before formatting
+        numeric_cols = ['Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'RO Value (₹)', 'Impressions', 'CPM']
+        for col in numeric_cols:
+            if col in display_ro.columns:
+                display_ro[col] = pd.to_numeric(display_ro[col], errors='coerce')
+        
+        # Format currency columns
+        for col in ['Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'RO Value (₹)']:
+            if col in display_ro.columns:
+                display_ro[col] = display_ro[col].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A")
+        
+        # Format percentage
+        if 'Budget Utilization %' in display_ro.columns:
+            display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        
+        # Format impressions
+        if 'Impressions' in display_ro.columns:
+            display_ro['Impressions'] = display_ro['Impressions'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "N/A")
+        
+        # Format CPM
+        if 'CPM' in display_ro.columns:
+            display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}" if pd.notna(x) else "N/A")
         
         st.dataframe(display_ro, use_container_width=True)
         
