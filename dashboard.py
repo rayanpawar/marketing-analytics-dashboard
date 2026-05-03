@@ -536,6 +536,10 @@ with tab3:
         
         release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
         
+        # Debug: Show what we're working with
+        st.write(f"**Debug - Columns after groupby:** {release_order_df.columns.tolist()}")
+        st.write(f"**Debug - First row RO:** {release_order_df['Release Order'].iloc[0] if len(release_order_df) > 0 else 'No data'}")
+        
         release_order_df.columns = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'] + \
                                    (['Release Order_id'] if 'Release Order_id' in filtered_df.columns else \
                                     (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
