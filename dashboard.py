@@ -261,6 +261,152 @@ with col5:
 
 st.markdown("---")
 
+# REVENUE BY RELEASE ORDER ID (RO ID)
+st.write("### 💰 Revenue by Release Order ID (RO ID)")
+
+if 'ReleaseOrderId' in df.columns and 'Revenue (INR)' in df.columns:
+    # Calculate revenue by ReleaseOrderId - SUM all campaigns per RO
+    revenue_by_ro = df.groupby('ReleaseOrderId', as_index=False).agg({
+        'RoValue': 'first',  # Release Order Value (contract amount)
+        'Revenue (INR)': 'sum',  # SUM total revenue for all campaigns under this RO
+        'Roname': 'first',
+        'Impressions': 'sum',
+        'Requests': 'sum',
+        'Campaigns': 'count'
+    }).rename(columns={'Campaigns': 'Campaign_Count'})
+    
+    # Sort by revenue descending
+    revenue_by_ro = revenue_by_ro.sort_values('Revenue (INR)', ascending=False)
+    
+    # Display tabs for different views
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Summary", "📋 Detailed Table", "📈 Charts", "📥 Export"])
+    
+    with tab1:
+        # Summary statistics
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("Total RO IDs", len(revenue_by_ro))
+        with col2:
+            st.metric("Total RO Value", f"₹{revenue_by_ro['RoValue'].sum():,.0f}")
+        with col3:
+            st.metric("Total Revenue Earned", f"₹{revenue_by_ro['Revenue (INR)'].sum():,.0f}")
+        with col4:
+            st.metric("Avg Revenue per RO", f"₹{revenue_by_ro['Revenue (INR)'].mean():,.0f}")
+        with col5:
+            st.metric("Campaigns per RO", f"{revenue_by_ro['Campaign_Count'].mean():.1f}")
+        
+        st.markdown("---")
+        st.info("💡 **How revenue is calculated:** For each RO ID, all campaigns' revenue is summed together to show total revenue per Release Order.\n\n**RoValue** = Release Order contract value | **Revenue (INR)** = Actual revenue earned from campaigns")
+    
+    with tab2:
+        # Display options
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            num_rows = st.number_input("Show top N RO IDs", min_value=5, max_value=len(revenue_by_ro), value=15, step=5)
+        
+        with col2:
+            sort_option = st.selectbox("Sort by:", ["Revenue (INR)", "ReleaseOrderId", "Campaign_Count"])
+        
+        # Sort based on user selection
+        if sort_option == "ReleaseOrderId":
+            revenue_by_ro_display = revenue_by_ro.sort_values('ReleaseOrderId').head(num_rows)
+        else:
+            revenue_by_ro_display = revenue_by_ro.sort_values(sort_option, ascending=False).head(num_rows)
+        
+        # Format for display
+        revenue_display = revenue_by_ro_display.copy()
+        revenue_display['RoValue'] = revenue_display['RoValue'].apply(lambda x: f"₹{x:,.0f}")
+        revenue_display['Revenue (INR)'] = revenue_display['Revenue (INR)'].apply(lambda x: f"₹{x:,.0f}")
+        revenue_display['Impressions'] = revenue_display['Impressions'].apply(lambda x: f"{int(x):,}")
+        revenue_display['Requests'] = revenue_display['Requests'].apply(lambda x: f"{int(x):,}")
+        
+        st.dataframe(revenue_display, use_container_width=True)
+        
+        # Detailed breakdown by RO
+        st.markdown("---")
+        st.write("#### 🔍 Detailed Breakdown - Individual Campaigns per RO ID")
+        selected_ro = st.selectbox("Select RO ID to see all campaigns:", sorted(revenue_by_ro['ReleaseOrderId'].unique()), format_func=lambda x: f"RO {int(x)}")
+        
+        ro_campaigns_detail = df[df['ReleaseOrderId'] == selected_ro][['ReleaseOrderId', 'Roname', 'Campaigns', 'Revenue (INR)', 'Impressions', 'Requests', 'CTR%']].copy()
+        ro_total = ro_campaigns_detail['Revenue (INR)'].sum()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("RO ID", int(selected_ro))
+        with col2:
+            st.metric("Total Revenue", f"₹{ro_total:,.0f}")
+        with col3:
+            st.metric("Campaigns", len(ro_campaigns_detail))
+        
+        ro_campaigns_detail['Revenue (INR)'] = ro_campaigns_detail['Revenue (INR)'].apply(lambda x: f"₹{x:,.0f}")
+        ro_campaigns_detail['Impressions'] = ro_campaigns_detail['Impressions'].apply(lambda x: f"{int(x):,}")
+        ro_campaigns_detail['Requests'] = ro_campaigns_detail['Requests'].apply(lambda x: f"{int(x):,}")
+        
+        st.dataframe(ro_campaigns_detail, use_container_width=True)
+    
+    with tab3:
+        # Visualization
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.write("#### 📊 Top RO IDs by Revenue")
+            fig = px.bar(revenue_by_ro.head(20), x='ReleaseOrderId', y='Revenue (INR)', 
+                         hover_data=['Roname', 'Campaign_Count', 'Impressions'],
+                         title="Top 20 RO IDs by Total Revenue (all campaigns summed)",
+                         labels={'ReleaseOrderId': 'Release Order ID', 'Revenue (INR)': 'Total Revenue (₹)'})
+            fig.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.write("#### 📊 Revenue Distribution")
+            fig2 = px.pie(revenue_by_ro.head(10), values='Revenue (INR)', names='ReleaseOrderId',
+                          title="Revenue Share - Top 10 RO IDs")
+            st.plotly_chart(fig2, use_container_width=True)
+    
+    with tab4:
+        # Export options
+        st.write("#### 📥 Download Revenue Data")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            csv = revenue_by_ro.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name="revenue_by_ro_id.csv",
+                mime="text/csv"
+            )
+        
+        with col2:
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                revenue_by_ro.to_excel(writer, sheet_name='Revenue by RO', index=False)
+            buffer.seek(0)
+            st.download_button(
+                label="📥 Download Excel",
+                data=buffer,
+                file_name="revenue_by_ro_id.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+        with col3:
+            st.info("✅ All RO IDs included in exports")
+        
+        st.markdown("---")
+        st.write("**Data includes:**")
+        st.write("- ReleaseOrderId: Unique Release Order ID")
+        st.write("- RoValue: Release Order **contract value** (budget amount)")
+        st.write("- Total Revenue (INR): **SUM of all campaigns** actual revenue earned under this RO")
+        st.write("- Campaign_Count: Number of campaigns for this RO")
+        st.write("- Total Impressions: Sum of all impressions across campaigns")
+        st.write("- Total Requests: Sum of all requests across campaigns")
+    
+    st.markdown("---")
+else:
+    st.warning("⚠️ Required columns (ReleaseOrderId or Revenue (INR)) not found in the data.")
+
 # Cascading Filters - Dynamic based on selected groupby columns
 st.sidebar.title("🔍 Hierarchical Filters")
 
@@ -523,7 +669,8 @@ with tab3:
             'Requests': 'sum',
             'Revenue (INR)': 'sum',
             'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
-            'Publisher': 'first' if 'Publisher' in df.columns else 'count'
+            'Publisher': 'first' if 'Publisher' in df.columns else 'count',
+            'RoValue': 'first' if 'RoValue' in filtered_df.columns else 'count'  # Add RoValue
         }
         
         # Add Release Order ID if it exists in the dataframe
@@ -559,14 +706,16 @@ with tab3:
             release_order_df['Budget Utilization %'] = (release_order_df['Total Revenue'] / release_order_df['Total Budget'].replace(0, 1) * 100).round(2)
             release_order_df['Budget Remaining'] = release_order_df['Total Budget'] - release_order_df['Total Revenue']
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Total Budget", f"₹{release_order_df['Total Budget'].sum():,.0f}")
+            st.metric("Total RO Value", f"₹{release_order_df['RoValue'].sum():,.0f}")
         with col2:
-            st.metric("Total Revenue", f"₹{release_order_df['Total Revenue'].sum():,.0f}")
+            st.metric("Total Budget", f"₹{release_order_df['Total Budget'].sum():,.0f}")
         with col3:
-            st.metric("Release Orders", len(release_order_df))
+            st.metric("Total Revenue", f"₹{release_order_df['Total Revenue'].sum():,.0f}")
         with col4:
+            st.metric("Release Orders", len(release_order_df))
+        with col5:
             st.metric("Avg Revenue per RO", f"₹{release_order_df['Total Revenue'].mean():,.0f}")
         
         st.markdown("---")
@@ -579,12 +728,13 @@ with tab3:
         
         # Create display table with RO ID right after Release Order
         if ro_id_column:
-            display_ro = release_order_df[['Release Order', ro_id_column, 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'RO ID', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
+            display_ro = release_order_df[['Release Order', ro_id_column, 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
+            display_ro.columns = ['Release Order', 'RO ID', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         else:
-            display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
-            display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
+            display_ro = release_order_df[['Release Order', 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
+            display_ro.columns = ['Release Order', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         
+        display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
