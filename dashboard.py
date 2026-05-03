@@ -725,6 +725,9 @@ with tab3:
         if 'Total Budget' in release_order_df.columns:
             release_order_df['Budget Utilization %'] = (release_order_df['Total Revenue'] / release_order_df['Total Budget'].replace(0, 1) * 100).round(2)
             release_order_df['Budget Remaining'] = release_order_df['Total Budget'] - release_order_df['Total Revenue']
+            
+            # Ensure Budget Remaining is numeric for comparisons
+            release_order_df['Budget Remaining'] = pd.to_numeric(release_order_df['Budget Remaining'], errors='coerce')
         
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
@@ -788,11 +791,19 @@ with tab3:
         # Check for RO Budget Loss Alerts
         st.write("### 🚨 Budget Status Alerts")
         
-        # Alert 1: Revenue exceeded budget (overspend)
-        overspend_ros = release_order_df[release_order_df['Budget Remaining'] < 0]
+        overspend_ros = pd.DataFrame()
+        underspend_ros = pd.DataFrame()
         
-        # Alert 2: Revenue below budget (underspend)
-        underspend_ros = release_order_df[release_order_df['Budget Remaining'] > 0]
+        # Ensure Budget Remaining exists and is numeric before comparison
+        if 'Budget Remaining' in release_order_df.columns:
+            # Convert to numeric if not already
+            release_order_df['Budget Remaining'] = pd.to_numeric(release_order_df['Budget Remaining'], errors='coerce')
+            
+            # Alert 1: Revenue exceeded budget (overspend)
+            overspend_ros = release_order_df[release_order_df['Budget Remaining'] < 0]
+            
+            # Alert 2: Revenue below budget (underspend)
+            underspend_ros = release_order_df[release_order_df['Budget Remaining'] > 0]
         
         alert_exists = False
         
