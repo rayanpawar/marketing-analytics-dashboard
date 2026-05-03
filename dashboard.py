@@ -542,6 +542,20 @@ with tab3:
                                     (['Release Order ID'] if 'Release Order ID' in filtered_df.columns else \
                                     (['RO ID'] if 'RO ID' in filtered_df.columns else [])))
         
+        # Show DETAILED debug info BEFORE formatting
+        with st.expander("🔍 **DEBUG - Revenue Column Analysis**", expanded=True):
+            st.warning("Check what revenue data we have:")
+            st.write(f"**Columns in data:** {filtered_df.columns.tolist()}")
+            st.write(f"**Revenue column exists:** {'Revenue (INR)' in filtered_df.columns}")
+            if 'Revenue (INR)' in filtered_df.columns:
+                st.write(f"**Revenue data type:** {filtered_df['Revenue (INR)'].dtype}")
+                st.write(f"**Revenue min/max:** {filtered_df['Revenue (INR)'].min()} to {filtered_df['Revenue (INR)'].max()}")
+                st.write(f"**Revenue sum (all rows):** ₹{filtered_df['Revenue (INR)'].sum():,}")
+                st.write("**First 10 revenue values:**")
+                st.write(filtered_df['Revenue (INR)'].head(10).tolist())
+            st.write("\n**RO aggregation result:**")
+            st.dataframe(release_order_df[['Release Order', 'Total Revenue', 'Total Budget']].head(5), use_container_width=True)
+        
         # Show debug info
         with st.expander("🔍 Debug: Check RO aggregation"):
             st.write("**Sample RO data before formatting:**")
