@@ -662,15 +662,19 @@ with tab3:
     st.subheader("� Release Order Revenue Report - Budget & Revenue Analysis")
     
     try:
-        # Group by Release Order with Publisher info
+        # Group by ReleaseOrderId (not Release Order text) to avoid grouping issues
+        # Check if ReleaseOrderId exists
+        group_col = 'ReleaseOrderId' if 'ReleaseOrderId' in filtered_df.columns else 'Release Order'
+        
         agg_dict = {
+            'Release Order': 'first',  # Get the Release Order name
             'Campaigns': 'nunique',
             'Impressions': 'sum',
             'Requests': 'sum',
             'Revenue (INR)': 'sum',
-            'Campaign Budget': 'first' if 'Campaign Budget' in df.columns else 'count',
+            'Campaign Budget': 'sum' if 'Campaign Budget' in df.columns else 'count',  # SUM instead of FIRST
             'Publisher': 'first' if 'Publisher' in df.columns else 'count',
-            'RoValue': 'first' if 'RoValue' in filtered_df.columns else 'count'  # Add RoValue
+            'RoValue': 'first' if 'RoValue' in filtered_df.columns else 'count'  # RoValue (should be same for same RO ID)
         }
         
         # Add Release Order ID if it exists in the dataframe
@@ -678,13 +682,17 @@ with tab3:
             agg_dict['Release Order_id'] = 'first'
         elif 'Release Order ID' in filtered_df.columns:
             agg_dict['Release Order ID'] = 'first'
-        elif 'RO ID' in filtered_df.columns:
-            agg_dict['RO ID'] = 'first'
+        elif 'ReleaseOrderId' in filtered_df.columns and group_col != 'ReleaseOrderId':
+            agg_dict['ReleaseOrderId'] = 'first'
         
-        release_order_df = filtered_df.groupby('Release Order').agg(agg_dict).reset_index()
+        release_order_df = filtered_df.groupby(group_col).agg(agg_dict).reset_index(drop=(group_col != 'Release Order'))
         
         # Build column names dynamically based on what's actually in the result
-        col_names = ['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher']
+        col_names = []
+        if group_col == 'ReleaseOrderId':
+            col_names.append('ReleaseOrderId')
+        
+        col_names.extend(['Release Order', 'Campaigns', 'Total Impressions', 'Total Requests', 'Total Revenue', 'Total Budget', 'Publisher'])
         
         # Add RoValue if it exists
         if 'RoValue' in release_order_df.columns:
@@ -695,10 +703,12 @@ with tab3:
             col_names.append('Release Order_id')
         elif 'Release Order ID' in release_order_df.columns:
             col_names.append('Release Order ID')
-        elif 'RO ID' in release_order_df.columns:
-            col_names.append('RO ID')
+        elif 'ReleaseOrderId' in release_order_df.columns and group_col != 'ReleaseOrderId':
+            col_names.append('ReleaseOrderId')
         
-        release_order_df.columns = col_names
+        # Only rename if column count matches
+        if len(col_names) == len(release_order_df.columns):
+            release_order_df.columns = col_names
         
         # Sort by Release Order ID if it exists, otherwise by Release Order
         if 'Release Order_id' in release_order_df.columns:
@@ -747,14 +757,14 @@ with tab3:
         if ro_id_column and has_rovalue:
             display_ro = release_order_df[['Release Order', ro_id_column, 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'RO ID', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A")
         elif ro_id_column:
             display_ro = release_order_df[['Release Order', ro_id_column, 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'RO ID', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
         elif has_rovalue:
             display_ro = release_order_df[['Release Order', 'RoValue', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'RO Value (₹)', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
-            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}")
+            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A")
         else:
             display_ro = release_order_df[['Release Order', 'Total Budget', 'Total Revenue', 'Budget Remaining', 'Budget Utilization %', 'Total Impressions', 'CPM']].copy()
             display_ro.columns = ['Release Order', 'Total Budget (₹)', 'Total Revenue (₹)', 'Budget Remaining (₹)', 'Budget Utilization %', 'Impressions', 'CPM']
@@ -762,6 +772,13 @@ with tab3:
         display_ro['Total Budget (₹)'] = display_ro['Total Budget (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Total Revenue (₹)'] = display_ro['Total Revenue (₹)'].apply(lambda x: f"₹{x:,.0f}")
         display_ro['Budget Remaining (₹)'] = display_ro['Budget Remaining (₹)'].apply(lambda x: f"₹{x:,.0f}")
+        
+        # Handle RO Value formatting - skip NaN values
+        if 'RO Value (₹)' in display_ro.columns:
+            display_ro['RO Value (₹)'] = display_ro['RO Value (₹)'].apply(
+                lambda x: f"₹{x:,.0f}" if pd.notna(x) and x > 0 else "N/A"
+            )
+        
         display_ro['Budget Utilization %'] = display_ro['Budget Utilization %'].apply(lambda x: f"{x:.2f}%")
         display_ro['Impressions'] = display_ro['Impressions'].astype(int)
         display_ro['CPM'] = display_ro['CPM'].apply(lambda x: f"₹{x:,.2f}")
