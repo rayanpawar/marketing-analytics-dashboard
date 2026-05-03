@@ -57,15 +57,39 @@ if 'sheet_name' not in st.session_state:
 
 # STEP 1: FILE UPLOAD
 st.write("### 📁 STEP 1: Upload Excel File")
-uploaded_files = st.file_uploader("Upload Excel file for analysis", type=["xls", "xlsx"], accept_multiple_files=False, key="daily_reports")
 
-if uploaded_files:
-    st.session_state.uploaded_files = uploaded_files
-    st.success(f"✅ File uploaded: {uploaded_files.name}")
+# Show currently uploaded file if exists
+if st.session_state.uploaded_files:
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.success(f"✅ File cached: {st.session_state.uploaded_files.name}")
+        st.info("File will remain cached until you remove it below.")
+    with col2:
+        if st.button("🗑️ Remove File", key="remove_file_btn"):
+            st.session_state.uploaded_files = None
+            st.session_state.excel_details_submitted = False
+            st.rerun()
     
+    # Option to upload a different file
+    if st.checkbox("Upload a different file?", key="upload_different"):
+        uploaded_files = st.file_uploader("Upload Excel file for analysis", type=["xls", "xlsx"], accept_multiple_files=False, key="daily_reports")
+        if uploaded_files:
+            st.session_state.uploaded_files = uploaded_files
+            st.success(f"✅ File replaced: {uploaded_files.name}")
+            st.rerun()
+else:
+    # Show file uploader if no file cached
+    uploaded_files = st.file_uploader("Upload Excel file for analysis", type=["xls", "xlsx"], accept_multiple_files=False, key="daily_reports")
+    if uploaded_files:
+        st.session_state.uploaded_files = uploaded_files
+        st.success(f"✅ File uploaded: {uploaded_files.name}")
+        st.rerun()
+
+# STEP 2: EXCEL DETAILS - Only show if file is cached
+if st.session_state.uploaded_files:
     # Get available sheet names
     try:
-        xls = pd.ExcelFile(uploaded_files)
+        xls = pd.ExcelFile(st.session_state.uploaded_files)
         available_sheets = xls.sheet_names
     except Exception as e:
         st.error(f"Error reading Excel file: {str(e)}")
