@@ -46,10 +46,33 @@ if not check_password():
 # CHATBOT FEATURE
 # ============================================================================
 
-def query_openrouter(messages, api_key):
-    """Query OpenRouter API with the given messages"""
+def get_demo_response(user_message):
+    """Generate demo responses without requiring an API key"""
+    message_lower = user_message.lower()
+    
+    demo_responses = {
+        "hello|hi|hey": "Hello! 👋 I'm your Campaign Analytics Assistant. How can I help you with your campaign data today?",
+        "help|what can you do": "I can help you:\n• Analyze campaign performance\n• Answer questions about your data\n• Provide insights on metrics\n• Help with campaign optimization\n\nWhat would you like to know?",
+        "performance|metrics|data": "To get insights on your campaign performance, please upload your Excel file in the main dashboard page first. Then I can help analyze your data! 📊",
+        "budget|roi|revenue": "I can help you analyze budget allocation, ROI, and revenue metrics once you upload your campaign data.",
+        "thank": "You're welcome! Feel free to ask me anything else about your campaigns! 😊",
+    }
+    
+    # Check for keyword matches
+    for keywords, response in demo_responses.items():
+        for keyword in keywords.split("|"):
+            if keyword in message_lower:
+                return response
+    
+    # Default response
+    return "I'm in demo mode right now. To get full AI-powered responses, please add an OpenAI API key to your Streamlit secrets. For now, I can help guide you through the dashboard features! 📊\n\nWhat would you like to know?"
+
+def query_ai(messages, api_key):
+    """Query OpenAI API with the given messages"""
     if not api_key or api_key == "":
-        return "❌ API key not configured. Please add openrouter_api_key to Streamlit secrets."
+        # Use demo mode
+        user_message = messages[-1]["content"] if messages else ""
+        return get_demo_response(user_message)
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -65,11 +88,10 @@ def query_openrouter(messages, api_key):
     
     try:
         response = requests.post(
-            "https://openrouter.io/api/v1/chat/completions",
+            "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30,
-            verify=False
+            timeout=30
         )
         
         if response.status_code == 200:
@@ -81,20 +103,22 @@ def query_openrouter(messages, api_key):
         else:
             # Provide helpful error message based on status code
             if response.status_code == 401:
-                return "❌ Authentication failed: Invalid API key. Please check your OpenRouter API key."
+                return "❌ Authentication failed: Invalid API key. Please check your OpenAI API key in Streamlit secrets."
             elif response.status_code == 429:
-                return "⚠️ Rate limited: Too many requests. Please try again in a moment."
+                return "⚠️ OpenAI quota exceeded: Please check your billing details at https://platform.openai.com/account/billing"
+            elif response.status_code == 500:
+                return "⚠️ OpenAI service error. Please try again later."
             else:
-                return f"⚠️ API returned error {response.status_code}. Service may be temporarily unavailable."
+                return f"⚠️ API returned error {response.status_code}. Please try again."
     
     except requests.exceptions.ConnectionError:
-        return "⚠️ Connection failed: Unable to reach OpenRouter. Check your internet connection or try again later."
+        return "⚠️ Connection failed: Unable to reach OpenAI. Check your internet connection or try again later."
     except requests.exceptions.Timeout:
-        return "⚠️ Timeout: OpenRouter took too long to respond. Please try again."
+        return "⚠️ Timeout: OpenAI took too long to respond. Please try again."
     except requests.exceptions.RequestException as e:
         return f"⚠️ Request error: {str(e)[:80]}"
     except json.JSONDecodeError:
-        return "⚠️ Invalid response from OpenRouter API. Service may be experiencing issues."
+        return "⚠️ Invalid response from OpenAI API. Service may be experiencing issues."
     except Exception as e:
         return f"⚠️ Unexpected error: {str(e)[:80]}"
 
@@ -123,10 +147,10 @@ if user_input:
         st.markdown(user_input)
     
     # Prepare context and messages for API
-    api_key = st.secrets.get("openrouter_api_key", "")
+    api_key = st.secrets.get("openai_api_key", "")
     
     if not api_key:
-        error_msg = "❌ OpenRouter API key not configured. Please add `openrouter_api_key` to your Streamlit secrets."
+        error_msg = "❌ OpenAI API key not configured. Please add `openai_api_key` to your Streamlit secrets."
         st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
         with st.chat_message("assistant"):
             st.error(error_msg)
@@ -144,7 +168,7 @@ if user_input:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             with st.spinner("🔄 Thinking..."):
-                response = query_openrouter(messages, api_key)
+                response = query_ai(messages, api_key)
             
             # Add assistant response to history
             st.session_state.chat_messages.append({"role": "assistant", "content": response})
