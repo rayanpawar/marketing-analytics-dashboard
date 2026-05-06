@@ -152,6 +152,9 @@ You are a Campaign Analytics Assistant. You have access to the following campaig
 **Available Columns:** Release Order, Campaign, Publisher, Impressions, Revenue (INR), CTR%, Budget, Status
 
 Please answer questions about the campaign data accurately and concisely.
+"""
+    return context
+
 # Initialize chatbot session state (for Chatbot page only)
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
