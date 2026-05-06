@@ -528,8 +528,112 @@ if 'ReleaseOrderId' in df.columns and 'Revenue (INR)' in df.columns:
 else:
     st.warning("⚠️ Required columns (ReleaseOrderId or Revenue (INR)) not found in the data.")
 
-# Cascading Filters - Dynamic based on selected groupby columns
-st.sidebar.title("🔍 Hierarchical Filters")
+# PER-DAY IMPRESSION GOALS SECTION
+st.markdown("---")
+st.write("### 📅 Per-Day Impression Goals")
+
+# Check for date and scheduled impression columns
+date_cols = ['Date Start', 'Date End', 'Date', 'Start Date', 'End Date']
+start_col = None
+end_col = None
+
+for col in date_cols:
+    if col in df.columns:
+        if 'start' in col.lower():
+            start_col = col
+        elif 'end' in col.lower():
+            end_col = col
+
+if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns' in df.columns:
+    try:
+        # Create daily goals table
+        daily_goals = df[['Campaigns', start_col, end_col, 'Schedule Impression']].copy()
+        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions']
+        
+        # Convert to datetime
+        daily_goals['Start Date'] = pd.to_datetime(daily_goals['Start Date'], errors='coerce')
+        daily_goals['End Date'] = pd.to_datetime(daily_goals['End Date'], errors='coerce')
+        
+        # Calculate days (inclusive of both start and end date)
+        daily_goals['Days'] = (daily_goals['End Date'] - daily_goals['Start Date']).dt.days + 1
+        
+        # Calculate per day goal
+        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days'].replace(0, 1)).round(0).astype(int)
+        
+        # Remove rows with invalid dates
+        daily_goals = daily_goals[daily_goals['Days'] > 0].copy()
+        
+        if len(daily_goals) > 0:
+            # Display tabs
+            tab1, tab2, tab3 = st.tabs(["📊 Summary", "📋 Table", "📈 Chart"])
+            
+            with tab1:
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Campaigns", len(daily_goals))
+                with col2:
+                    st.metric("Avg Campaign Duration", f"{daily_goals['Days'].mean():.0f} days")
+                with col3:
+                    total_scheduled = daily_goals['Scheduled Impressions'].sum()
+                    st.metric("Total Scheduled Impressions", f"{int(total_scheduled):,}")
+                with col4:
+                    avg_per_day = daily_goals['Per Day Goal'].mean()
+                    st.metric("Avg Per Day Goal", f"{int(avg_per_day):,}")
+                
+                st.markdown("---")
+                st.info("💡 **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration (days). This shows your daily impression target to stay on schedule.")
+            
+            with tab2:
+                # Format for display
+                display_goals = daily_goals.copy()
+                display_goals['Start Date'] = display_goals['Start Date'].dt.strftime('%Y-%m-%d')
+                display_goals['End Date'] = display_goals['End Date'].dt.strftime('%Y-%m-%d')
+                display_goals['Scheduled Impressions'] = display_goals['Scheduled Impressions'].apply(lambda x: f"{int(x):,}")
+                display_goals['Per Day Goal'] = display_goals['Per Day Goal'].apply(lambda x: f"{x:,}")
+                
+                # Add sorting option
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    num_rows = st.number_input("Show top N campaigns", min_value=5, max_value=len(display_goals), value=20, step=5)
+                with col2:
+                    sort_by = st.selectbox("Sort by:", ["Per Day Goal", "Days", "Campaign"])
+                
+                if sort_by == "Per Day Goal":
+                    display_goals_sorted = display_goals.iloc[daily_goals.nlargest(num_rows, 'Per Day Goal').index]
+                elif sort_by == "Days":
+                    display_goals_sorted = display_goals.iloc[daily_goals.nlargest(num_rows, 'Days').index]
+                else:
+                    display_goals_sorted = display_goals.head(num_rows)
+                
+                st.dataframe(display_goals_sorted, use_container_width=True)
+            
+            with tab3:
+                # Visualization
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Bar chart - Top campaigns by per day goal
+                    top_campaigns = daily_goals.nlargest(15, 'Per Day Goal')[['Campaign', 'Per Day Goal']].copy()
+                    fig = px.bar(top_campaigns, x='Campaign', y='Per Day Goal',
+                                 title="Top 15 Campaigns by Per Day Goal",
+                                 labels={'Campaign': 'Campaign', 'Per Day Goal': 'Per Day Goal (Impressions)'})
+                    fig.update_layout(height=400, xaxis_tickangle=-45)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    # Campaign duration distribution
+                    fig2 = px.histogram(daily_goals, x='Days', nbins=20,
+                                       title="Campaign Duration Distribution",
+                                       labels={'Days': 'Duration (days)', 'count': 'Number of Campaigns'})
+                    st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.warning("⚠️ No valid date ranges found in the data.")
+    except Exception as e:
+        st.warning(f"⚠️ Error calculating daily goals: {str(e)}")
+else:
+    st.info("📁 Upload a file with Start Date, End Date, and Scheduled Impressions columns to see Per-Day Impression Goals.")
+
+st.markdown("---")
 
 # Create filters based on groupby_columns selection
 available_groupby = st.session_state.groupby_columns
