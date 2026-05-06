@@ -152,59 +152,16 @@ You are a Campaign Analytics Assistant. You have access to the following campaig
 **Available Columns:** Release Order, Campaign, Publisher, Impressions, Revenue (INR), CTR%, Budget, Status
 
 Please answer questions about the campaign data accurately and concisely.
-"""
-    return context
-
-# Initialize chatbot session state
+# Initialize chatbot session state (for Chatbot page only)
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 
-# Chatbot Sidebar
+st.markdown("---")
+
+# Sidebar - Navigation and info
 with st.sidebar:
-    st.markdown("---")
-    st.header("🤖 Campaign AI Assistant")
-    
-    # Display chat history
-    for message in st.session_state.chat_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    
-    # User input
-    user_input = st.chat_input("Ask me anything about your campaigns...")
-    
-    if user_input:
-        # Add user message to history
-        st.session_state.chat_messages.append({"role": "user", "content": user_input})
-    
-    # Generate response if last message is from user (unresponded)
-    if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1]["role"] == "user":
-        # Get API key (may be empty, demo mode will be used)
-        api_key = st.secrets.get("groq_api_key", "")
-        
-        try:
-            # Build context for the chatbot
-            context = "You are a Campaign Analytics Assistant. Answer questions briefly and concisely. Be direct."
-            
-            messages = [
-                {"role": "system", "content": context},
-            ]
-            
-            # Add all conversation history including the latest user message
-            for msg in st.session_state.chat_messages:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            with st.spinner("🔄 Thinking..."):
-                response = query_ai(messages, api_key)
-            
-            # Add assistant response to history
-            st.session_state.chat_messages.append({"role": "assistant", "content": response})
-            
-            # Rerun to display the response
-            st.rerun()
-        
-        except Exception as e:
-            error_msg = f"❌ Error: {str(e)}"
-            st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
+    st.markdown("### 💡 Tip")
+    st.info("Use the **Chatbot** page for AI-powered insights about your campaigns!")
 
 st.markdown("---")
 
