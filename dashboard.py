@@ -90,7 +90,7 @@ def query_ai(messages, api_key):
         "model": "llama-3.1-8b-instant",
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 500
     }
     
     try:
@@ -184,7 +184,7 @@ with st.sidebar:
         
         try:
             # Build context for the chatbot
-            context = "You are a Campaign Analytics Assistant. Help answer questions about campaign performance data."
+            context = "You are a Campaign Analytics Assistant. Answer questions briefly and concisely. Be direct."
             
             messages = [
                 {"role": "system", "content": context},
