@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import json
+import pandas as pd
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -42,6 +43,73 @@ def check_password():
 if not check_password():
     st.stop()
 
+# Load data from uploaded file if available
+def load_uploaded_file(uploaded_file, sheet_name="Analytics"):
+    """Load a single uploaded Excel file"""
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+        return df
+    except Exception as e:
+        return None
+
+def process_data(df, date_cols, numeric_cols):
+    """Process dataframe with specified column types"""
+    if df is None:
+        return None
+    
+    df = df.copy()
+    
+    # Convert date columns
+    for col in date_cols:
+        if col in df.columns:
+            try:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+            except:
+                pass
+    
+    # Convert numeric columns
+    for col in numeric_cols:
+        if col in df.columns:
+            try:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            except:
+                pass
+    
+    return df
+
+def get_data_summary(df):
+    """Generate a summary of the current data"""
+    if df is None or len(df) == 0:
+        return ""
+    
+    summary = f"""
+**📊 Your Current Campaign Data:**
+- Records: {len(df):,}
+"""
+    
+    if 'Impressions' in df.columns:
+        summary += f"- Total Impressions: {df['Impressions'].sum():,.0f}\n"
+    
+    if 'Requests' in df.columns:
+        summary += f"- Total Requests: {df['Requests'].sum():,.0f}\n"
+    
+    if 'Revenue (INR)' in df.columns:
+        summary += f"- Total Revenue: ₹{df['Revenue (INR)'].sum():,.0f}\n"
+    
+    if 'CTR%' in df.columns:
+        summary += f"- Avg CTR: {df['CTR%'].mean():.2f}%\n"
+    
+    if 'ReleaseOrderId' in df.columns:
+        summary += f"- Unique Release Orders: {df['ReleaseOrderId'].nunique()}\n"
+    
+    if 'Campaigns' in df.columns:
+        summary += f"- Unique Campaigns: {df['Campaigns'].nunique()}\n"
+    
+    if 'Publisher' in df.columns:
+        summary += f"- Unique Publishers: {df['Publisher'].nunique()}\n"
+    
+    return summary
+
 # ============================================================================
 # CHATBOT FEATURE
 # ============================================================================
@@ -67,8 +135,8 @@ def get_demo_response(user_message):
     # Default response
     return "I'm in demo mode right now. To get full AI-powered responses, please add a Groq API key to your Streamlit secrets. For now, I can help guide you through the dashboard features! 📊\n\nWhat would you like to know?"
 
-def query_ai(messages, api_key):
-    """Query Groq API with the given messages"""
+def query_ai(messages, api_key, data_context=""):
+    """Query Groq API with the given messages and data context"""
     if not api_key or api_key == "":
         # Use demo mode
         user_message = messages[-1]["content"] if messages else ""
@@ -126,10 +194,32 @@ def query_ai(messages, api_key):
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 
+if "dashboard_data" not in st.session_state:
+    st.session_state.dashboard_data = None
+
 st.markdown("---")
 
 # Display instructions
 st.info("💡 Ask me anything about your campaigns! I'm here to help you analyze campaign data and answer your questions.")
+
+# Load data from dashboard if available
+if st.session_state.uploaded_files:
+    df = load_uploaded_file(st.session_state.uploaded_files, st.session_state.sheet_name if hasattr(st.session_state, 'sheet_name') else "Analytics")
+    
+    if df is not None:
+        # Process date and numeric columns
+        date_cols = st.session_state.date_columns if hasattr(st.session_state, 'date_columns') else []
+        numeric_cols = st.session_state.numeric_columns if hasattr(st.session_state, 'numeric_columns') else []
+        df = process_data(df, date_cols, numeric_cols)
+        st.session_state.dashboard_data = df
+        
+        # Show data summary in expander
+        with st.expander("📊 Data Summary"):
+            st.write(get_data_summary(df))
+    else:
+        st.warning("⚠️ Could not load data from dashboard. Upload a file in the main dashboard first.")
+else:
+    st.info("📁 No data uploaded yet. Upload a file in the main **Dashboard** page first to enable data-aware AI responses.")
 
 # Display chat history
 for message in st.session_state.chat_messages:
@@ -149,7 +239,14 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
     
     try:
         # Build context for the chatbot
-        context = "You are a Campaign Analytics Assistant. Answer questions briefly and concisely. Be direct."
+        context = "You are a Campaign Analytics Assistant. Answer questions about campaign data briefly and concisely. Be direct and analytical."
+        
+        # Add data context if available
+        if st.session_state.dashboard_data is not None:
+            data_summary = get_data_summary(st.session_state.dashboard_data)
+            context += f"\n\n{data_summary}\n\nAnswer questions based on this data when relevant."
+        else:
+            context += "\n\nNo campaign data has been uploaded yet. Guide the user to upload data in the main dashboard."
         
         messages = [
             {"role": "system", "content": context},
@@ -160,7 +257,7 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
             messages.append({"role": msg["role"], "content": msg["content"]})
         
         with st.spinner("🔄 Thinking..."):
-            response = query_ai(messages, api_key)
+            response = query_ai(messages, api_key, data_summary if st.session_state.dashboard_data is not None else "")
         
         # Add assistant response to history
         st.session_state.chat_messages.append({"role": "assistant", "content": response})
