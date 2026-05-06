@@ -138,6 +138,54 @@ def get_data_summary(df):
     
     return summary
 
+def get_daily_goals_table(df):
+    """Generate a table with per-day goals based on campaign dates and scheduled impressions"""
+    if df is None or len(df) == 0:
+        return None
+    
+    # Check for required columns
+    required_cols = ['Campaigns', 'Schedule Impression']
+    date_cols = ['Date Start', 'Date End', 'Date', 'Start Date', 'End Date']
+    
+    # Find which date columns exist
+    start_col = None
+    end_col = None
+    
+    for col in date_cols:
+        if col in df.columns:
+            if 'start' in col.lower():
+                start_col = col
+            elif 'end' in col.lower():
+                end_col = col
+    
+    # If we don't have both date columns, return None
+    if start_col is None or end_col is None:
+        return None
+    
+    try:
+        daily_goals = df[['Campaigns', start_col, end_col, 'Schedule Impression']].copy()
+        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions']
+        
+        # Convert to datetime
+        daily_goals['Start Date'] = pd.to_datetime(daily_goals['Start Date'], errors='coerce')
+        daily_goals['End Date'] = pd.to_datetime(daily_goals['End Date'], errors='coerce')
+        
+        # Calculate days
+        daily_goals['Days'] = (daily_goals['End Date'] - daily_goals['Start Date']).dt.days + 1
+        
+        # Calculate per day goal
+        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days'].replace(0, 1)).round(0).astype(int)
+        
+        # Format for display
+        daily_goals['Start Date'] = daily_goals['Start Date'].dt.strftime('%Y-%m-%d')
+        daily_goals['End Date'] = daily_goals['End Date'].dt.strftime('%Y-%m-%d')
+        daily_goals['Scheduled Impressions'] = daily_goals['Scheduled Impressions'].apply(lambda x: f"{int(x):,}")
+        daily_goals['Per Day Goal'] = daily_goals['Per Day Goal'].apply(lambda x: f"{x:,}")
+        
+        return daily_goals
+    except Exception as e:
+        return None
+
 # ============================================================================
 # CHATBOT FEATURE
 # ============================================================================
@@ -148,8 +196,9 @@ def get_demo_response(user_message):
     
     demo_responses = {
         "pacing": "📊 **Pacing** measures how well your campaigns are delivering against their schedule:\n\n• **Impression Pacing** = (Actual Impressions / Scheduled Impressions) × 100%\n• **Budget Pacing** = (Actual Revenue / Total Budget) × 100%\n\nFor example:\n- 100% = On track ✅\n- >100% = Ahead of schedule 🚀\n- <100% = Behind schedule ⚠️",
+        "daily goal|per day|day goals": "📅 **Per Day Goals** show how many impressions you need per day to meet your schedule:\n\n• **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration (days)\n\nThis helps track if you're hitting daily targets to stay on schedule.",
         "hello|hi|hey": "Hello! 👋 I'm your Campaign Analytics Assistant. How can I help you with your campaign data today?",
-        "help|what can you do": "I can help you:\n• Analyze campaign performance\n• Answer questions about your data\n• Provide insights on metrics\n• Help with campaign optimization\n• Calculate pacing and delivery metrics\n\nWhat would you like to know?",
+        "help|what can you do": "I can help you:\n• Analyze campaign performance\n• Answer questions about your data\n• Provide insights on metrics\n• Calculate pacing and delivery metrics\n• Show per-day impression goals\n\nWhat would you like to know?",
         "performance|metrics|data": "To get insights on your campaign performance, please upload your Excel file in the main dashboard page first. Then I can help analyze your data! 📊",
         "budget|roi|revenue": "I can help you analyze budget allocation, ROI, and revenue metrics once you upload your campaign data.",
         "thank": "You're welcome! Feel free to ask me anything else about your campaigns! 😊",
@@ -257,6 +306,14 @@ if st.session_state.uploaded_files is not None:
                 summary = get_data_summary(df)
                 st.write(summary)
                 st.success(f"✅ Using data from: {st.session_state.uploaded_files.name}")
+                
+                # Show daily goals table if available
+                st.markdown("---")
+                st.write("#### 📅 Per-Day Impression Goals")
+                daily_goals_df = get_daily_goals_table(df)
+                if daily_goals_df is not None and len(daily_goals_df) > 0:
+                    st.dataframe(daily_goals_df, use_container_width=True)
+                    st.info("💡 **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration. This shows your daily impression target to stay on schedule.")
         else:
             st.warning("⚠️ Could not load data from the uploaded file. Check the sheet name and try again.")
     except Exception as e:
@@ -295,7 +352,8 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
 
 **Your capabilities:**
 - Analyze revenue, impressions, requests, CTR metrics
-- Calculate and explain pacing metrics
+- Calculate and explain pacing metrics (Actual vs Scheduled)
+- Show per-day impression goals (Scheduled Impressions ÷ Campaign Days)
 - Compare publisher and campaign performance
 - Identify trends and provide recommendations
 
@@ -304,6 +362,11 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
             # Add data summary
             data_summary = get_data_summary(df)
             context += f"\n\n{data_summary}"
+            
+            # Add daily goals info if available
+            daily_goals_df = get_daily_goals_table(df)
+            if daily_goals_df is not None and len(daily_goals_df) > 0:
+                context += f"\n\n**Per-Day Goals Available:**\nCampaigns have start/end dates and scheduled impressions. Per-day goals = Scheduled Impressions ÷ Campaign Days."
             
             # Add column info
             context += f"\n\n**Available Columns:** {', '.join(df.columns.tolist())}"
