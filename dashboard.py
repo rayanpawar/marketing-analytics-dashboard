@@ -58,7 +58,8 @@ def query_openrouter(messages, api_key):
     headers = {
         "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://campaign-analytics-dashboard.streamlit.app",
-        "X-Title": "Campaign Analytics Dashboard"
+        "X-Title": "Campaign Analytics Dashboard",
+        "Content-Type": "application/json"
     }
     
     data = {
@@ -73,12 +74,22 @@ def query_openrouter(messages, api_key):
             "https://openrouter.io/api/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=30
+            timeout=30,
+            verify=True
         )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+        else:
+            return f"API Error {response.status_code}: {response.text}"
+    
+    except requests.exceptions.ConnectionError as e:
+        return "⚠️ Connection error: Unable to reach OpenRouter API. Please check your internet connection or try again later."
+    except requests.exceptions.Timeout:
+        return "⚠️ Request timeout: The API took too long to respond. Please try again."
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"⚠️ Error: {str(e)}"
 
 def get_data_context(df, filtered_df):
     """Generate a context string from the data for the chatbot"""
