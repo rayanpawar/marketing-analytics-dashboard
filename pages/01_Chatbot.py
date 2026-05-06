@@ -1,5 +1,8 @@
 import streamlit as st
 import requests
+import json
+from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 # Page configuration
 st.set_page_config(page_title="AI Chatbot", layout="wide")
@@ -45,15 +48,16 @@ if not check_password():
 
 def query_openrouter(messages, api_key):
     """Query OpenRouter API with the given messages"""
+    if not api_key or api_key == "":
+        return "❌ API key not configured. Please add openrouter_api_key to Streamlit secrets."
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://campaign-analytics-dashboard.streamlit.app",
-        "X-Title": "Campaign Analytics Dashboard - Chatbot",
         "Content-Type": "application/json"
     }
     
     data = {
-        "model": "openai/gpt-3.5-turbo",
+        "model": "gpt-3.5-turbo",
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 1000
@@ -65,21 +69,34 @@ def query_openrouter(messages, api_key):
             headers=headers,
             json=data,
             timeout=30,
-            verify=True
+            verify=False
         )
         
         if response.status_code == 200:
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            if "choices" in result and len(result["choices"]) > 0:
+                return result["choices"][0]["message"]["content"]
+            else:
+                return f"⚠️ Unexpected API response format"
         else:
-            return f"API Error {response.status_code}: {response.text}"
+            # Provide helpful error message based on status code
+            if response.status_code == 401:
+                return "❌ Authentication failed: Invalid API key. Please check your OpenRouter API key."
+            elif response.status_code == 429:
+                return "⚠️ Rate limited: Too many requests. Please try again in a moment."
+            else:
+                return f"⚠️ API returned error {response.status_code}. Service may be temporarily unavailable."
     
-    except requests.exceptions.ConnectionError as e:
-        return "⚠️ Connection error: Unable to reach OpenRouter API. Please check your internet connection or try again later."
+    except requests.exceptions.ConnectionError:
+        return "⚠️ Connection failed: Unable to reach OpenRouter. Check your internet connection or try again later."
     except requests.exceptions.Timeout:
-        return "⚠️ Request timeout: The API took too long to respond. Please try again."
+        return "⚠️ Timeout: OpenRouter took too long to respond. Please try again."
+    except requests.exceptions.RequestException as e:
+        return f"⚠️ Request error: {str(e)[:80]}"
+    except json.JSONDecodeError:
+        return "⚠️ Invalid response from OpenRouter API. Service may be experiencing issues."
     except Exception as e:
-        return f"⚠️ Error: {str(e)}"
+        return f"⚠️ Unexpected error: {str(e)[:80]}"
 
 # Initialize chatbot session state
 if "chat_messages" not in st.session_state:
