@@ -143,11 +143,6 @@ if user_input:
     # Add user message to history
     st.session_state.chat_messages.append({"role": "user", "content": user_input})
 
-# Display all messages
-for message in st.session_state.chat_messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
 # Generate response if last message is from user (unresponded)
 if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1]["role"] == "user":
     api_key = st.secrets.get("groq_api_key", "")
