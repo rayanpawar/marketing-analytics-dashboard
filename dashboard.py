@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 import numpy as np
 from io import BytesIO
+import requests
+import json
 
 # Page configuration
 st.set_page_config(page_title="Campaign Analytics Dashboard", layout="wide")
@@ -44,6 +46,124 @@ def check_password():
 
 if not check_password():
     st.stop()
+
+st.markdown("---")
+
+# ============================================================================
+# CHATBOT FEATURE
+# ============================================================================
+
+def query_openrouter(messages, api_key):
+    """Query OpenRouter API with the given messages"""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "HTTP-Referer": "https://campaign-analytics-dashboard.streamlit.app",
+        "X-Title": "Campaign Analytics Dashboard"
+    }
+    
+    data = {
+        "model": "openai/gpt-3.5-turbo",
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 1000
+    }
+    
+    try:
+        response = requests.post(
+            "https://openrouter.io/api/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def get_data_context(df, filtered_df):
+    """Generate a context string from the data for the chatbot"""
+    context = f"""
+You are a Campaign Analytics Assistant. You have access to the following campaign data:
+
+**Dataset Summary:**
+- Total Records: {len(df)}
+- Total Budget: ₹{df['Campaign Budget'].sum():,.0f}
+- Total Revenue: ₹{df['Revenue (INR)'].sum():,.2f}
+- Total Impressions: {df['Impressions'].sum():,.0f}
+- Unique Campaigns: {df['Campaigns'].nunique()}
+- Unique Publishers: {df['Publisher'].nunique()}
+- Unique Release Orders: {df['ReleaseOrderId'].nunique()}
+
+**Current Filtered Data:**
+- Records: {len(filtered_df)}
+- Total Budget (Filtered): ₹{filtered_df['Campaign Budget'].sum():,.0f}
+- Total Revenue (Filtered): ₹{filtered_df['Revenue (INR)'].sum():,.2f}
+
+**Available Columns:** Release Order, Campaign, Publisher, Impressions, Revenue (INR), CTR%, Budget, Status
+
+Please answer questions about the campaign data accurately and concisely.
+"""
+    return context
+
+# Initialize chatbot session state
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
+
+# Chatbot Sidebar
+with st.sidebar:
+    st.markdown("---")
+    st.header("🤖 Campaign AI Assistant")
+    
+    # Display chat history
+    for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    
+    # User input
+    user_input = st.chat_input("Ask me anything about your campaigns...")
+    
+    if user_input:
+        # Add user message to history
+        st.session_state.chat_messages.append({"role": "user", "content": user_input})
+        
+        with st.chat_message("user"):
+            st.markdown(user_input)
+        
+        # Prepare context and messages for API
+        api_key = st.secrets.get("openrouter_api_key", "")
+        
+        if not api_key:
+            error_msg = "❌ OpenRouter API key not configured. Please add `openrouter_api_key` to your Streamlit secrets."
+            st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
+            with st.chat_message("assistant"):
+                st.error(error_msg)
+        else:
+            try:
+                # Build context for the chatbot
+                context = "You are a Campaign Analytics Assistant. Help answer questions about campaign performance data."
+                
+                messages = [
+                    {"role": "system", "content": context},
+                ]
+                
+                # Add conversation history
+                for msg in st.session_state.chat_messages[:-1]:  # Exclude the current message
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+                
+                with st.spinner("🔄 Thinking..."):
+                    response = query_openrouter(messages, api_key)
+                
+                # Add assistant response to history
+                st.session_state.chat_messages.append({"role": "assistant", "content": response})
+                
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+            
+            except Exception as e:
+                error_msg = f"❌ Error: {str(e)}"
+                st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
+                with st.chat_message("assistant"):
+                    st.error(error_msg)
 
 st.markdown("---")
 
