@@ -144,7 +144,6 @@ def get_daily_goals_table(df):
         return None
     
     # Check for required columns
-    required_cols = ['Campaigns', 'Schedule Impression']
     date_cols = ['Date Start', 'Date End', 'Date', 'Start Date', 'End Date']
     
     # Find which date columns exist
@@ -163,8 +162,14 @@ def get_daily_goals_table(df):
         return None
     
     try:
-        daily_goals = df[['Campaigns', start_col, end_col, 'Schedule Impression']].copy()
-        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions']
+        cols_to_select = ['Campaigns', start_col, end_col, 'Schedule Impression']
+        if 'Impressions' in df.columns:
+            cols_to_select.append('Impressions')
+        
+        daily_goals = df[cols_to_select].dropna(subset=['Campaigns']).copy()
+        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions'] + (
+            ['Actual Impressions'] if 'Impressions' in df.columns else []
+        )
         
         # Convert to datetime
         daily_goals['Start Date'] = pd.to_datetime(daily_goals['Start Date'], errors='coerce')
@@ -173,8 +178,17 @@ def get_daily_goals_table(df):
         # Convert Scheduled Impressions to numeric
         daily_goals['Scheduled Impressions'] = pd.to_numeric(daily_goals['Scheduled Impressions'], errors='coerce')
         
+        # Convert Actual Impressions to numeric
+        if 'Actual Impressions' in daily_goals.columns:
+            daily_goals['Actual Impressions'] = pd.to_numeric(daily_goals['Actual Impressions'], errors='coerce')
+        
         # Calculate days
         daily_goals['Days'] = (daily_goals['End Date'] - daily_goals['Start Date']).dt.days + 1
+        
+        # Calculate days elapsed
+        today = pd.Timestamp.now().normalize()
+        daily_goals['Days Elapsed'] = (today - daily_goals['Start Date']).dt.days + 1
+        daily_goals['Days Elapsed'] = daily_goals['Days Elapsed'].clip(lower=1, upper=daily_goals['Days'])
         
         # Remove rows with invalid data
         daily_goals = daily_goals[
@@ -191,11 +205,34 @@ def get_daily_goals_table(df):
         # Calculate per day goal using nullable integer
         daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days']).round(0).astype('Int64')
         
+        # Calculate actual per day if available
+        if 'Actual Impressions' in daily_goals.columns:
+            daily_goals['Actual Per Day'] = (daily_goals['Actual Impressions'] / daily_goals['Days Elapsed']).round(0).astype('Int64')
+            daily_goals['Difference'] = daily_goals['Actual Per Day'] - daily_goals['Per Day Goal']
+        
         # Format for display
         daily_goals['Start Date'] = daily_goals['Start Date'].dt.strftime('%Y-%m-%d')
         daily_goals['End Date'] = daily_goals['End Date'].dt.strftime('%Y-%m-%d')
         daily_goals['Scheduled Impressions'] = daily_goals['Scheduled Impressions'].apply(lambda x: f"{int(x):,}")
         daily_goals['Per Day Goal'] = daily_goals['Per Day Goal'].apply(lambda x: f"{x:,}")
+        
+        if 'Actual Impressions' in daily_goals.columns:
+            daily_goals['Actual Impressions'] = daily_goals['Actual Impressions'].apply(lambda x: f"{int(x):,}")
+            daily_goals['Actual Per Day'] = daily_goals['Actual Per Day'].apply(lambda x: f"{x:,}")
+            
+            def format_diff(val):
+                try:
+                    diff = int(val)
+                    if diff > 0:
+                        return f"↑ +{diff:,}"
+                    elif diff < 0:
+                        return f"↓ {diff:,}"
+                    else:
+                        return "→ 0"
+                except:
+                    return str(val)
+            
+            daily_goals['Difference'] = daily_goals['Difference'].apply(format_diff)
         
         return daily_goals
     except Exception as e:

@@ -547,8 +547,14 @@ for col in date_cols:
 if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns' in df.columns:
     try:
         # Create daily goals table
-        daily_goals = df[['Campaigns', start_col, end_col, 'Schedule Impression']].copy()
-        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions']
+        daily_goals = df[[
+            'Campaigns', start_col, end_col, 'Schedule Impression', 
+            'Impressions' if 'Impressions' in df.columns else None
+        ]].dropna(subset=['Campaigns']).copy()
+        
+        daily_goals.columns = ['Campaign', 'Start Date', 'End Date', 'Scheduled Impressions'] + (
+            ['Actual Impressions'] if 'Impressions' in df.columns else []
+        )
         
         # Convert to datetime
         daily_goals['Start Date'] = pd.to_datetime(daily_goals['Start Date'], errors='coerce')
@@ -557,8 +563,25 @@ if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns'
         # Convert Scheduled Impressions to numeric
         daily_goals['Scheduled Impressions'] = pd.to_numeric(daily_goals['Scheduled Impressions'], errors='coerce')
         
+        # Convert Actual Impressions to numeric
+        if 'Actual Impressions' in daily_goals.columns:
+            daily_goals['Actual Impressions'] = pd.to_numeric(daily_goals['Actual Impressions'], errors='coerce')
+        
         # Calculate days (inclusive of both start and end date)
         daily_goals['Days'] = (daily_goals['End Date'] - daily_goals['Start Date']).dt.days + 1
+        
+        # Calculate days elapsed so far (from start date to today)
+        today = pd.Timestamp.now().normalize()
+        daily_goals['Days Elapsed'] = (today - daily_goals['Start Date']).dt.days + 1
+        daily_goals['Days Elapsed'] = daily_goals['Days Elapsed'].clip(lower=1, upper=daily_goals['Days'])
+        
+        # Calculate per day goal using nullable integer
+        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days']).round(0).astype('Int64')
+        
+        # Calculate actual per day (impressions delivered / days elapsed)
+        if 'Actual Impressions' in daily_goals.columns:
+            daily_goals['Actual Per Day'] = (daily_goals['Actual Impressions'] / daily_goals['Days Elapsed']).round(0).astype('Int64')
+            daily_goals['Difference'] = daily_goals['Actual Per Day'] - daily_goals['Per Day Goal']
         
         # Remove rows with invalid dates or missing scheduled impressions
         daily_goals = daily_goals[
@@ -568,9 +591,6 @@ if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns'
             (daily_goals['Scheduled Impressions'].notna()) &
             (daily_goals['Scheduled Impressions'] > 0)
         ].copy()
-        
-        # Calculate per day goal using nullable integer
-        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days']).round(0).astype('Int64')
         
         if len(daily_goals) > 0:
             # Display tabs
@@ -590,7 +610,24 @@ if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns'
                     st.metric("Avg Per Day Goal", f"{int(avg_per_day):,}")
                 
                 st.markdown("---")
-                st.info("💡 **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration (days). This shows your daily impression target to stay on schedule.")
+                
+                if 'Actual Impressions' in daily_goals.columns:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        total_actual = daily_goals['Actual Impressions'].sum()
+                        st.metric("Total Actual Impressions", f"{int(total_actual):,}")
+                    with col2:
+                        avg_actual_per_day = daily_goals['Actual Per Day'].mean()
+                        st.metric("Avg Actual Per Day", f"{int(avg_actual_per_day):,}")
+                    with col3:
+                        avg_difference = daily_goals['Difference'].mean()
+                        st.metric("Avg Difference", f"{int(avg_difference):,}", delta=f"{int(avg_difference):,}")
+                    
+                    st.markdown("---")
+                    st.info("💡 **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration | **Actual Per Day** = Actual Impressions ÷ Days Elapsed | **Difference** = Actual Per Day - Goal")
+                else:
+                    st.markdown("---")
+                    st.info("💡 **Per Day Goal** = Scheduled Impressions ÷ Campaign Duration (days). This shows your daily impression target to stay on schedule.")
             
             with tab2:
                 # Format for display
@@ -600,41 +637,99 @@ if start_col and end_col and 'Schedule Impression' in df.columns and 'Campaigns'
                 display_goals['Scheduled Impressions'] = display_goals['Scheduled Impressions'].apply(lambda x: f"{int(x):,}")
                 display_goals['Per Day Goal'] = display_goals['Per Day Goal'].apply(lambda x: f"{x:,}")
                 
+                # Add actual impressions columns if available
+                if 'Actual Impressions' in display_goals.columns:
+                    display_goals['Actual Impressions'] = display_goals['Actual Impressions'].apply(lambda x: f"{int(x):,}")
+                    display_goals['Actual Per Day'] = display_goals['Actual Per Day'].apply(lambda x: f"{x:,}")
+                    
+                    # Format difference with color indicator
+                    def format_difference(val):
+                        try:
+                            diff = int(val)
+                            if diff > 0:
+                                return f"↑ +{diff:,}"
+                            elif diff < 0:
+                                return f"↓ {diff:,}"
+                            else:
+                                return "→ 0"
+                        except:
+                            return str(val)
+                    
+                    display_goals['Difference'] = display_goals['Difference'].apply(format_difference)
+                
                 # Add sorting option
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     num_rows = st.number_input("Show top N campaigns", min_value=5, max_value=len(display_goals), value=20, step=5)
                 with col2:
-                    sort_by = st.selectbox("Sort by:", ["Per Day Goal", "Days", "Campaign"])
+                    sort_by = st.selectbox("Sort by:", ["Per Day Goal", "Days", "Difference"] if 'Difference' in display_goals.columns else ["Per Day Goal", "Days", "Campaign"])
                 
                 if sort_by == "Per Day Goal":
                     display_goals_sorted = display_goals.iloc[daily_goals.nlargest(num_rows, 'Per Day Goal').index]
                 elif sort_by == "Days":
                     display_goals_sorted = display_goals.iloc[daily_goals.nlargest(num_rows, 'Days').index]
+                elif sort_by == "Difference" and 'Difference' in daily_goals.columns:
+                    display_goals_sorted = display_goals.iloc[daily_goals.nlargest(num_rows, 'Difference').index]
                 else:
                     display_goals_sorted = display_goals.head(num_rows)
                 
                 st.dataframe(display_goals_sorted, use_container_width=True)
+                
+                # Add legend
+                if 'Difference' in display_goals.columns:
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write("**↑ +** = Ahead of target (delivering more than goal)")
+                    with col2:
+                        st.write("**→ 0** = On track (meeting exact goal)")
+                    with col3:
+                        st.write("**↓ -** = Behind target (delivering less than goal)")
             
             with tab3:
                 # Visualization
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    # Bar chart - Top campaigns by per day goal
-                    top_campaigns = daily_goals.nlargest(15, 'Per Day Goal')[['Campaign', 'Per Day Goal']].copy()
-                    fig = px.bar(top_campaigns, x='Campaign', y='Per Day Goal',
-                                 title="Top 15 Campaigns by Per Day Goal",
-                                 labels={'Campaign': 'Campaign', 'Per Day Goal': 'Per Day Goal (Impressions)'})
-                    fig.update_layout(height=400, xaxis_tickangle=-45)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    # Campaign duration distribution
-                    fig2 = px.histogram(daily_goals, x='Days', nbins=20,
-                                       title="Campaign Duration Distribution",
-                                       labels={'Days': 'Duration (days)', 'count': 'Number of Campaigns'})
-                    st.plotly_chart(fig2, use_container_width=True)
+                if 'Actual Impressions' in daily_goals.columns:
+                    # Show comparison charts
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Top campaigns by difference
+                        top_diff = daily_goals.nlargest(15, 'Difference')[['Campaign', 'Per Day Goal', 'Actual Per Day']].copy()
+                        fig = px.bar(top_diff, x='Campaign', y=['Per Day Goal', 'Actual Per Day'],
+                                     title="Top 15 Campaigns: Actual vs Goal Per Day",
+                                     labels={'Campaign': 'Campaign', 'value': 'Impressions/Day'},
+                                     barmode='group')
+                        fig.update_layout(height=400, xaxis_tickangle=-45)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        # Difference chart (positive = ahead, negative = behind)
+                        diff_data = daily_goals.nlargest(15, 'Difference')[['Campaign', 'Difference']].copy()
+                        colors = ['green' if x > 0 else 'red' for x in diff_data['Difference']]
+                        fig2 = px.bar(diff_data, x='Campaign', y='Difference',
+                                     title="Performance Difference vs Goal\n(↑ Ahead, ↓ Behind)",
+                                     labels={'Campaign': 'Campaign', 'Difference': 'Difference (Impressions/Day)'})
+                        fig2.update_traces(marker_color=colors)
+                        fig2.update_layout(height=400, xaxis_tickangle=-45)
+                        st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        # Bar chart - Top campaigns by per day goal
+                        top_campaigns = daily_goals.nlargest(15, 'Per Day Goal')[['Campaign', 'Per Day Goal']].copy()
+                        fig = px.bar(top_campaigns, x='Campaign', y='Per Day Goal',
+                                     title="Top 15 Campaigns by Per Day Goal",
+                                     labels={'Campaign': 'Campaign', 'Per Day Goal': 'Per Day Goal (Impressions)'})
+                        fig.update_layout(height=400, xaxis_tickangle=-45)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        # Campaign duration distribution
+                        fig2 = px.histogram(daily_goals, x='Days', nbins=20,
+                                           title="Campaign Duration Distribution",
+                                           labels={'Days': 'Duration (days)', 'count': 'Number of Campaigns'})
+                        st.plotly_chart(fig2, use_container_width=True)
         else:
             st.warning("⚠️ No valid date ranges found in the data.")
     except Exception as e:
