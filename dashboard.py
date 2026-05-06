@@ -175,10 +175,9 @@ with st.sidebar:
     if user_input:
         # Add user message to history
         st.session_state.chat_messages.append({"role": "user", "content": user_input})
-        
-        with st.chat_message("user"):
-            st.markdown(user_input)
-        
+    
+    # Generate response if last message is from user (unresponded)
+    if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1]["role"] == "user":
         # Get API key (may be empty, demo mode will be used)
         api_key = st.secrets.get("groq_api_key", "")
         
@@ -190,8 +189,8 @@ with st.sidebar:
                 {"role": "system", "content": context},
             ]
             
-            # Add conversation history
-            for msg in st.session_state.chat_messages[:-1]:  # Exclude the current message
+            # Add all conversation history including the latest user message
+            for msg in st.session_state.chat_messages:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             with st.spinner("🔄 Thinking..."):
@@ -200,14 +199,12 @@ with st.sidebar:
             # Add assistant response to history
             st.session_state.chat_messages.append({"role": "assistant", "content": response})
             
-            with st.chat_message("assistant"):
-                st.markdown(response)
+            # Rerun to display the response
+            st.rerun()
         
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}"
             st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
-            with st.chat_message("assistant"):
-                st.error(error_msg)
 
 st.markdown("---")
 
