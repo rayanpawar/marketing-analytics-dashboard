@@ -166,10 +166,14 @@ def get_demo_response(user_message):
 
 def query_ai(messages, api_key, data_context=""):
     """Query Groq API with the given messages and data context"""
-    if not api_key or api_key == "":
-        # Use demo mode
+    # If no API key and no data context, use demo mode
+    if (not api_key or api_key == "") and not data_context:
         user_message = messages[-1]["content"] if messages else ""
         return get_demo_response(user_message)
+    
+    # If no API key but we have data, inform user
+    if not api_key or api_key == "":
+        return "⚠️ No Groq API key configured. Please add your Groq API key to Streamlit secrets to enable AI-powered analysis. For now, please use the dashboard charts for analysis."
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -226,29 +230,44 @@ if "chat_messages" not in st.session_state:
 if "dashboard_data" not in st.session_state:
     st.session_state.dashboard_data = None
 
+# Ensure uploaded_files reference from dashboard
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = None
+
 st.markdown("---")
 
 # Display instructions
 st.info("💡 Ask me anything about your campaigns! I'm here to help you analyze campaign data and answer your questions.")
 
 # Load data from dashboard if available
-if st.session_state.uploaded_files:
-    df = load_uploaded_file(st.session_state.uploaded_files, st.session_state.sheet_name if hasattr(st.session_state, 'sheet_name') else "Analytics")
-    
-    if df is not None:
-        # Process date and numeric columns
-        date_cols = st.session_state.date_columns if hasattr(st.session_state, 'date_columns') else []
-        numeric_cols = st.session_state.numeric_columns if hasattr(st.session_state, 'numeric_columns') else []
-        df = process_data(df, date_cols, numeric_cols)
-        st.session_state.dashboard_data = df
+if st.session_state.uploaded_files is not None:
+    try:
+        sheet_name = st.session_state.get("sheet_name", "Analytics")
+        df = load_uploaded_file(st.session_state.uploaded_files, sheet_name)
         
-        # Show data summary in expander
-        with st.expander("📊 Data Summary"):
-            st.write(get_data_summary(df))
-    else:
-        st.warning("⚠️ Could not load data from dashboard. Upload a file in the main dashboard first.")
+        if df is not None:
+            # Process date and numeric columns
+            date_cols = st.session_state.get("date_columns", [])
+            numeric_cols = st.session_state.get("numeric_columns", [])
+            df = process_data(df, date_cols, numeric_cols)
+            st.session_state.dashboard_data = df
+            
+            # Show data summary in expander
+            with st.expander("📊 Data Summary"):
+                summary = get_data_summary(df)
+                st.write(summary)
+                st.success(f"✅ Using data from: {st.session_state.uploaded_files.name}")
+        else:
+            st.warning("⚠️ Could not load data from the uploaded file. Check the sheet name and try again.")
+    except Exception as e:
+        st.warning(f"⚠️ Error loading data: {str(e)}")
 else:
-    st.info("📁 No data uploaded yet. Upload a file in the main **Dashboard** page first to enable data-aware AI responses.")
+    st.info("📁 **No data uploaded yet.** Upload a file in the main **Dashboard** page first to enable data-aware AI responses.")
+    st.write("Steps:")
+    st.write("1. Go to the **Dashboard** page")
+    st.write("2. Upload your Excel file")
+    st.write("3. Configure the sheet and columns")
+    st.write("4. Return to this **Chatbot** page")
 
 # Display chat history
 for message in st.session_state.chat_messages:
@@ -267,15 +286,29 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
     api_key = st.secrets.get("groq_api_key", "")
     
     try:
-        # Build context for the chatbot
-        context = "You are a Campaign Analytics Assistant. Answer questions about campaign data briefly and concisely. Be direct and analytical."
-        
-        # Add data context if available
-        if st.session_state.dashboard_data is not None:
-            data_summary = get_data_summary(st.session_state.dashboard_data)
-            context += f"\n\n{data_summary}\n\nAnswer questions based on this data when relevant."
+        # Build system context with actual data insights
+        if st.session_state.dashboard_data is not None and len(st.session_state.dashboard_data) > 0:
+            df = st.session_state.dashboard_data
+            
+            # Create detailed data context
+            context = """You are a Campaign Analytics Expert. Analyze the provided campaign data and answer questions accurately and concisely.
+
+**Your capabilities:**
+- Analyze revenue, impressions, requests, CTR metrics
+- Calculate and explain pacing metrics
+- Compare publisher and campaign performance
+- Identify trends and provide recommendations
+
+**Important:** ONLY use the provided data to answer questions. If asked about data that doesn't exist in the dataset, clearly state that."""
+            
+            # Add data summary
+            data_summary = get_data_summary(df)
+            context += f"\n\n{data_summary}"
+            
+            # Add column info
+            context += f"\n\n**Available Columns:** {', '.join(df.columns.tolist())}"
         else:
-            context += "\n\nNo campaign data has been uploaded yet. Guide the user to upload data in the main dashboard."
+            context = "You are a Campaign Analytics Assistant. No data has been uploaded yet. Guide users to upload their Excel file in the Dashboard page first."
         
         messages = [
             {"role": "system", "content": context},
@@ -285,7 +318,7 @@ if len(st.session_state.chat_messages) > 0 and st.session_state.chat_messages[-1
         for msg in st.session_state.chat_messages:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        with st.spinner("🔄 Thinking..."):
+        with st.spinner("🔄 Analyzing your data..."):
             response = query_ai(messages, api_key, data_summary if st.session_state.dashboard_data is not None else "")
         
         # Add assistant response to history
