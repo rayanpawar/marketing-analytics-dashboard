@@ -65,10 +65,10 @@ def get_demo_response(user_message):
                 return response
     
     # Default response
-    return "I'm in demo mode right now. To get full AI-powered responses, please add an OpenAI API key to your Streamlit secrets. For now, I can help guide you through the dashboard features! 📊\n\nWhat would you like to know?"
+    return "I'm in demo mode right now. To get full AI-powered responses, please add a Groq API key to your Streamlit secrets. For now, I can help guide you through the dashboard features! 📊\n\nWhat would you like to know?"
 
 def query_ai(messages, api_key):
-    """Query OpenAI API with the given messages"""
+    """Query Groq API with the given messages"""
     if not api_key or api_key == "":
         # Use demo mode
         user_message = messages[-1]["content"] if messages else ""
@@ -80,7 +80,7 @@ def query_ai(messages, api_key):
     }
     
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "llama-3.1-8b-instant",
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 1000
@@ -88,7 +88,7 @@ def query_ai(messages, api_key):
     
     try:
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=data,
             timeout=30
@@ -101,24 +101,24 @@ def query_ai(messages, api_key):
             else:
                 return f"⚠️ Unexpected API response format"
         else:
-            # Provide helpful error message based on status code
+            error_detail = response.json().get('error', {}).get('message', response.text)
             if response.status_code == 401:
-                return "❌ Authentication failed: Invalid API key. Please check your OpenAI API key in Streamlit secrets."
+                return "❌ Authentication failed: Invalid Groq API key. Please check your key in Streamlit secrets."
             elif response.status_code == 429:
-                return "⚠️ OpenAI quota exceeded: Please check your billing details at https://platform.openai.com/account/billing"
-            elif response.status_code == 500:
-                return "⚠️ OpenAI service error. Please try again later."
+                return "⚠️ Rate limited: Too many requests. Please try again in a moment."
+            elif response.status_code == 400:
+                return f"❌ Request error: {error_detail[:100]}"
             else:
                 return f"⚠️ API returned error {response.status_code}. Please try again."
     
     except requests.exceptions.ConnectionError:
-        return "⚠️ Connection failed: Unable to reach OpenAI. Check your internet connection or try again later."
+        return "⚠️ Connection failed: Unable to reach Groq. Check your internet connection or try again later."
     except requests.exceptions.Timeout:
-        return "⚠️ Timeout: OpenAI took too long to respond. Please try again."
+        return "⚠️ Timeout: Groq took too long to respond. Please try again."
     except requests.exceptions.RequestException as e:
         return f"⚠️ Request error: {str(e)[:80]}"
     except json.JSONDecodeError:
-        return "⚠️ Invalid response from OpenAI API. Service may be experiencing issues."
+        return "⚠️ Invalid response from Groq API. Service may be experiencing issues."
     except Exception as e:
         return f"⚠️ Unexpected error: {str(e)[:80]}"
 
@@ -146,8 +146,7 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
     
-    # Prepare context and messages for API
-    api_key = st.secrets.get("openai_api_key", "")
+    api_key = st.secrets.get("groq_api_key", "")
     
     try:
         # Build context for the chatbot
