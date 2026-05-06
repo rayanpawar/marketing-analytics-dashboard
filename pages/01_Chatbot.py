@@ -99,6 +99,22 @@ def get_data_summary(df):
     if 'CTR%' in df.columns:
         summary += f"- Avg CTR: {df['CTR%'].mean():.2f}%\n"
     
+    # Calculate Pacing (Impression Pacing)
+    if 'Impressions' in df.columns and 'Schedule Impression' in df.columns:
+        total_impressions = df['Impressions'].sum()
+        total_scheduled = df['Schedule Impression'].sum()
+        if total_scheduled > 0:
+            pacing = (total_impressions / total_scheduled) * 100
+            summary += f"- Impression Pacing: {pacing:.1f}%\n"
+    
+    # Calculate Budget Pacing if available
+    if 'Campaign Budget' in df.columns and 'Revenue (INR)' in df.columns:
+        total_budget = df['Campaign Budget'].sum()
+        total_revenue = df['Revenue (INR)'].sum()
+        if total_budget > 0:
+            budget_pacing = (total_revenue / total_budget) * 100
+            summary += f"- Budget Pacing (Revenue/Budget): {budget_pacing:.1f}%\n"
+    
     if 'ReleaseOrderId' in df.columns:
         summary += f"- Unique Release Orders: {df['ReleaseOrderId'].nunique()}\n"
     
@@ -107,6 +123,18 @@ def get_data_summary(df):
     
     if 'Publisher' in df.columns:
         summary += f"- Unique Publishers: {df['Publisher'].nunique()}\n"
+    
+    # Add pacing details by campaign
+    if 'Campaigns' in df.columns and 'Impressions' in df.columns and 'Schedule Impression' in df.columns:
+        pacing_by_campaign = df.groupby('Campaigns', as_index=False).agg({
+            'Impressions': 'sum',
+            'Schedule Impression': 'sum'
+        })
+        pacing_by_campaign['Pacing%'] = (pacing_by_campaign['Impressions'] / pacing_by_campaign['Schedule Impression'] * 100).round(1)
+        
+        summary += f"\n**Campaign Pacing Details:**\n"
+        for _, row in pacing_by_campaign.head(5).iterrows():
+            summary += f"  • {row['Campaigns']}: {row['Pacing%']:.1f}% ({int(row['Impressions']):,} / {int(row['Schedule Impression']):,})\n"
     
     return summary
 
@@ -119,8 +147,9 @@ def get_demo_response(user_message):
     message_lower = user_message.lower()
     
     demo_responses = {
+        "pacing": "📊 **Pacing** measures how well your campaigns are delivering against their schedule:\n\n• **Impression Pacing** = (Actual Impressions / Scheduled Impressions) × 100%\n• **Budget Pacing** = (Actual Revenue / Total Budget) × 100%\n\nFor example:\n- 100% = On track ✅\n- >100% = Ahead of schedule 🚀\n- <100% = Behind schedule ⚠️",
         "hello|hi|hey": "Hello! 👋 I'm your Campaign Analytics Assistant. How can I help you with your campaign data today?",
-        "help|what can you do": "I can help you:\n• Analyze campaign performance\n• Answer questions about your data\n• Provide insights on metrics\n• Help with campaign optimization\n\nWhat would you like to know?",
+        "help|what can you do": "I can help you:\n• Analyze campaign performance\n• Answer questions about your data\n• Provide insights on metrics\n• Help with campaign optimization\n• Calculate pacing and delivery metrics\n\nWhat would you like to know?",
         "performance|metrics|data": "To get insights on your campaign performance, please upload your Excel file in the main dashboard page first. Then I can help analyze your data! 📊",
         "budget|roi|revenue": "I can help you analyze budget allocation, ROI, and revenue metrics once you upload your campaign data.",
         "thank": "You're welcome! Feel free to ask me anything else about your campaigns! 😊",
