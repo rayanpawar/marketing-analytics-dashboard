@@ -149,38 +149,32 @@ if user_input:
     # Prepare context and messages for API
     api_key = st.secrets.get("openai_api_key", "")
     
-    if not api_key:
-        error_msg = "❌ OpenAI API key not configured. Please add `openai_api_key` to your Streamlit secrets."
+    try:
+        # Build context for the chatbot
+        context = "You are a Campaign Analytics Assistant. Help answer questions about campaign performance data, metrics, trends, and insights. Be concise and professional."
+        
+        messages = [
+            {"role": "system", "content": context},
+        ]
+        
+        # Add conversation history
+        for msg in st.session_state.chat_messages[:-1]:  # Exclude the current message
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        with st.spinner("🔄 Thinking..."):
+            response = query_ai(messages, api_key)
+        
+        # Add assistant response to history
+        st.session_state.chat_messages.append({"role": "assistant", "content": response})
+        
+        with st.chat_message("assistant"):
+            st.markdown(response)
+    
+    except Exception as e:
+        error_msg = f"❌ Error: {str(e)}"
         st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
         with st.chat_message("assistant"):
             st.error(error_msg)
-    else:
-        try:
-            # Build context for the chatbot
-            context = "You are a Campaign Analytics Assistant. Help answer questions about campaign performance data, metrics, trends, and insights. Be concise and professional."
-            
-            messages = [
-                {"role": "system", "content": context},
-            ]
-            
-            # Add conversation history
-            for msg in st.session_state.chat_messages[:-1]:  # Exclude the current message
-                messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            with st.spinner("🔄 Thinking..."):
-                response = query_ai(messages, api_key)
-            
-            # Add assistant response to history
-            st.session_state.chat_messages.append({"role": "assistant", "content": response})
-            
-            with st.chat_message("assistant"):
-                st.markdown(response)
-        
-        except Exception as e:
-            error_msg = f"❌ Error: {str(e)}"
-            st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
-            with st.chat_message("assistant"):
-                st.error(error_msg)
 
 # Add clear chat button in sidebar
 st.sidebar.markdown("---")
