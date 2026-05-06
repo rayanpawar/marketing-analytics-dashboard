@@ -170,11 +170,26 @@ def get_daily_goals_table(df):
         daily_goals['Start Date'] = pd.to_datetime(daily_goals['Start Date'], errors='coerce')
         daily_goals['End Date'] = pd.to_datetime(daily_goals['End Date'], errors='coerce')
         
+        # Convert Scheduled Impressions to numeric
+        daily_goals['Scheduled Impressions'] = pd.to_numeric(daily_goals['Scheduled Impressions'], errors='coerce')
+        
         # Calculate days
         daily_goals['Days'] = (daily_goals['End Date'] - daily_goals['Start Date']).dt.days + 1
         
-        # Calculate per day goal
-        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days'].replace(0, 1)).round(0).astype(int)
+        # Remove rows with invalid data
+        daily_goals = daily_goals[
+            (daily_goals['Days'] > 0) & 
+            (daily_goals['Start Date'].notna()) & 
+            (daily_goals['End Date'].notna()) & 
+            (daily_goals['Scheduled Impressions'].notna()) &
+            (daily_goals['Scheduled Impressions'] > 0)
+        ].copy()
+        
+        if len(daily_goals) == 0:
+            return None
+        
+        # Calculate per day goal using nullable integer
+        daily_goals['Per Day Goal'] = (daily_goals['Scheduled Impressions'] / daily_goals['Days']).round(0).astype('Int64')
         
         # Format for display
         daily_goals['Start Date'] = daily_goals['Start Date'].dt.strftime('%Y-%m-%d')
